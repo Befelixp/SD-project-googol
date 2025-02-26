@@ -4,8 +4,6 @@ import java.util.Scanner;
 
 public class RMIClient {
 
- 
-
     private void printmenu() {
         System.out.println("--------Menu--------");
         System.out.println("1) Index URL");
@@ -27,42 +25,11 @@ public class RMIClient {
         return opt;
     }
 
-        
+    public void options(int option) {
+
+    }
 
     public static void main(String[] args) {
-    
+        String 
     }
 }
-
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
