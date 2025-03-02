@@ -16,7 +16,6 @@ public class RMIClient {
         System.out.println("5) Exit");
         System.out.println("--------------------");
         System.out.println("Choose an option:");
-
     }
 
     private static int isIntger(Scanner sc) {
