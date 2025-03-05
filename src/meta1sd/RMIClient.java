@@ -1,11 +1,20 @@
-package meta1;
+package meta1sd;
 
-import java.util.Scanner;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.rmi.Naming;
+import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.List;
+import java.util.Properties;
+import java.util.Scanner;
+import java.net.MalformedURLException;
+import java.rmi.NotBoundException;
 
 public class RMIClient {
     private Scanner sc = new Scanner(System.in);
     private int id, characterLimit;
+    private GatewayClientInterface gateway;
 
     private void printmenu() {
         System.out.println("--------Menu--------");
@@ -18,6 +27,10 @@ public class RMIClient {
         System.out.println("Choose an option:");
     }
 
+    public void opt(GatewayClientInterface gateway, int option) throws RemoteException {
+
+    }
+
     private static int isIntger(Scanner sc) {
         while (!sc.hasNextInt()) {
             System.out.println("It must be an integer!");
@@ -25,10 +38,6 @@ public class RMIClient {
         }
         int opt = sc.nextInt();
         return opt;
-    }
-
-    public void options(int option) {
-
     }
 
     public static void main(String[] args) {
@@ -44,7 +53,7 @@ public class RMIClient {
             registryN = prop.getProperty("registryN");
             client.characterLimit = Integer.parseInt(prop.getProperty("limChar"));
 
-            client.gateway = (RMIGatewayClientsInterface) Naming.lookup(registryName);
+            client.gateway = (GatewayClientInterface) Naming.lookup(registryN);
 
         } catch (Exception e) {
             System.out.println("Gateway Unreachable");

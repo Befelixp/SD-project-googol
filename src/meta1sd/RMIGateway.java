@@ -1,7 +1,10 @@
-package meta1;
+package meta1sd;
 
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.rmi.RemoteException;
 import java.time.LocalDateTime;
+import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class RMIGateway {
@@ -34,10 +37,26 @@ public class RMIGateway {
         }
         urlQueue.put(url);
         System.out.println(LocalDateTime.now() + " : URL " + url + " added to the queue.");
-        linkSearchCouxnt++;
+        urlSearchCount++;
     }
 
     public static void main(String args[]) {
+        int gatewayClientPort;
+        String gatewayClientN;
 
+        try {
+            RMIGateway gateway = new RMIGateway();
+            Properties prop = new Properties();
+            InputStream input = new FileInputStream(args[0]);
+            prop.load(input);
+
+            gatewayClientPort = Integer.parseInt(prop.getProperty("gatewayClientPort"));
+            gatewayClientN = prop.getProperty("gatewayClientsN");
+
+            gateway.urlSearchDepth = Integer.parseInt(prop.getProperty("urlSearchDepth"));
+
+        } catch (Exception e) {
+
+        }
     }
 }
