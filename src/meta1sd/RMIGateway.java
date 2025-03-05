@@ -51,7 +51,7 @@ public class RMIGateway {
             prop.load(input);
 
             gatewayClientPort = Integer.parseInt(prop.getProperty("gatewayClientPort"));
-            gatewayClientN = prop.getProperty("gatewayClientsN");
+            gatewayClientN = prop.getProperty("gatewayClientN");
 
             gateway.urlSearchDepth = Integer.parseInt(prop.getProperty("urlSearchDepth"));
 
