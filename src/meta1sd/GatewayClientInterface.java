@@ -5,7 +5,6 @@ import java.rmi.RemoteException;
 
 public interface GatewayClientInterface extends Remote {
 
-    public void clientIndexUrl(String url) throws InterruptedException;
+    public void clientIndexUrl(String url) throws InterruptedException, RemoteException;
 
 }
-    

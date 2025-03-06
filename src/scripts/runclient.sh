@@ -26,6 +26,6 @@ if [ $# -gt 1 ]; then
     fi
 fi
 
-java -cp .. meta1.RMIClient $id ../$input_path
+java -cp .. meta1sd.RMIClient $id ../$input_path
 
 cd ..

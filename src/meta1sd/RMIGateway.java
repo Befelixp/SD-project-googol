@@ -3,11 +3,12 @@ package meta1sd;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
 import java.time.LocalDateTime;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class RMIGateway {
+public class RMIGateway extends UnicastRemoteObject implements GatewayClientInterface {
     private LinkedBlockingQueue<String> urlQueue;
     private int urlSearchCount, urlSearchDepth;
 
@@ -15,7 +16,7 @@ public class RMIGateway {
         urlQueue = new LinkedBlockingQueue<>();
     }
 
-    public synchronized void clientIndexUrl(String url) throws InterruptedException {
+    public synchronized void clientIndexUrl(String url) throws InterruptedException, RemoteException {
         if (urlQueue.contains(url)) {
             System.out.println(LocalDateTime.now() + " : URL (" + url + ") was already queued or indexed.");
             return;
@@ -55,8 +56,20 @@ public class RMIGateway {
 
             gateway.urlSearchDepth = Integer.parseInt(prop.getProperty("urlSearchDepth"));
 
-        } catch (Exception e) {
+            try {
+                java.rmi.registry.LocateRegistry.createRegistry(gatewayClientPort);
+                System.out.println("RMI Registry started on port " + gatewayClientPort);
 
+                // Registrar o objeto remoto no registro RMI
+                java.rmi.Naming.rebind("rmi://localhost:" + gatewayClientPort + "/" + gatewayClientN, gateway);
+                System.out.println("Gateway registered as '" + gatewayClientN + "' on port " + gatewayClientPort);
+            } catch (Exception e) {
+                System.out.println("Error registering gateway: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception e) {
+            System.out.println("Error initializing gateway: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
