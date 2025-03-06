@@ -1,3 +1,0 @@
-RMI Registry started on port 1092
-Gateway registered as 'Clients_Gateway' on port 1092
-2025-03-06T10:15:27.804256067 : URL google.com added to the queue.

@@ -1,2 +1,0 @@
-RMI Registry started on port 1092
-Gateway registered as 'Clients_Gateway' on port 1092
