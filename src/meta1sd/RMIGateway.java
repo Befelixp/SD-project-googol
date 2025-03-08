@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class RMIGateway extends UnicastRemoteObject implements GatewayClientInterface {
+public class RMIGateway extends UnicastRemoteObject implements GatewayClientInterface, GatewayDownloaderInterface {
     private LinkedBlockingQueue<String> urlQueue;
     private int urlSearchCount, urlSearchDepth;
 
@@ -42,8 +42,8 @@ public class RMIGateway extends UnicastRemoteObject implements GatewayClientInte
     }
 
     public static void main(String args[]) {
-        int gatewayClientPort;
-        String gatewayClientN;
+        int gatewayClientPort, gatewayDownloaderPort;
+        String gatewayClientN, gatewayDownloaderN;
 
         try {
             RMIGateway gateway = new RMIGateway();
@@ -54,6 +54,9 @@ public class RMIGateway extends UnicastRemoteObject implements GatewayClientInte
             gatewayClientPort = Integer.parseInt(prop.getProperty("gatewayClientPort"));
             gatewayClientN = prop.getProperty("gatewayClientN");
 
+            gatewayDownloaderPort = Integer.parseInt(prop.getProperty("gatewayDownloaderPort"));
+            gatewayDownloaderN = prop.getProperty("gatewayDownloaderN");
+
             gateway.urlSearchDepth = Integer.parseInt(prop.getProperty("urlSearchDepth"));
 
             try {
@@ -63,6 +66,13 @@ public class RMIGateway extends UnicastRemoteObject implements GatewayClientInte
                 // Registrar o objeto remoto no registro RMI
                 java.rmi.Naming.rebind("rmi://localhost:" + gatewayClientPort + "/" + gatewayClientN, gateway);
                 System.out.println("Gateway registered as '" + gatewayClientN + "' on port " + gatewayClientPort);
+
+                java.rmi.registry.LocateRegistry.createRegistry(gatewayDownloaderPort);
+                System.out.println("RMI Registry started on port " + gatewayDownloaderPort);
+
+                java.rmi.Naming.rebind("rmi://localhost:" + gatewayDownloaderPort + "/" + gatewayDownloaderN, gateway);
+                System.out.println("Gateway registered as '" + gatewayDownloaderN + "' on port " + gatewayDownloaderPort);
+
             } catch (Exception e) {
                 System.out.println("Error registering gateway: " + e.getMessage());
                 e.printStackTrace();
