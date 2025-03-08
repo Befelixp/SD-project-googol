@@ -16,6 +16,7 @@ public class RMIGateway extends UnicastRemoteObject implements GatewayClientInte
         urlQueue = new LinkedBlockingQueue<>();
     }
 
+    // Função para o cliente colocar uma URL na URLQueue
     public synchronized void clientIndexUrl(String url) throws InterruptedException, RemoteException {
         if (urlQueue.contains(url)) {
             System.out.println(LocalDateTime.now() + " : URL (" + url + ") was already queued or indexed.");
@@ -28,6 +29,7 @@ public class RMIGateway extends UnicastRemoteObject implements GatewayClientInte
         return;
     }
 
+    // Função pro crawler colocar URLs encontradas na URLQueue
     public synchronized void queueUrls(String url) throws InterruptedException {
         if (urlSearchCount > urlSearchDepth) {
             return;
@@ -71,7 +73,8 @@ public class RMIGateway extends UnicastRemoteObject implements GatewayClientInte
                 System.out.println("RMI Registry started on port " + gatewayDownloaderPort);
 
                 java.rmi.Naming.rebind("rmi://localhost:" + gatewayDownloaderPort + "/" + gatewayDownloaderN, gateway);
-                System.out.println("Gateway registered as '" + gatewayDownloaderN + "' on port " + gatewayDownloaderPort);
+                System.out
+                        .println("Gateway registered as '" + gatewayDownloaderN + "' on port " + gatewayDownloaderPort);
 
             } catch (Exception e) {
                 System.out.println("Error registering gateway: " + e.getMessage());
