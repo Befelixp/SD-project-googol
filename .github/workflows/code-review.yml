@@ -34,7 +34,7 @@ jobs:
           model: "deepseek-chat"
 
           # Padrões de arquivos para incluir na revisão
-          include-patterns: "*.java,*.properties,*.sh,*.gradle,pom.xml"
+          include-patterns: "TestFile.java,*.properties,*.sh,*.gradle,pom.xml"
 
           # Padrões de arquivos para excluir da revisão
           exclude-patterns: ""
