@@ -1,11 +1,9 @@
 name: DeepSeek Code Review
 
 on:
-  pull_request_target:
-    types:
-      - opened # Aciona quando um PR é aberto
-      - reopened # Aciona quando um PR é reaberto
-      - synchronize # Aciona quando um commit é enviado para o PR
+  push:
+    branches:
+      - main
 
 # Permissões necessárias para comentar no PR
 permissions:
