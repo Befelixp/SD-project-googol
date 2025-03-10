@@ -19,9 +19,8 @@ public class Downloader {
             try {
                 // Parte do RMI
                 GatewayDownloaderInterface gateway = (GatewayDownloaderInterface) Naming.lookup(registryN);
-                // teste CI/CL
             } catch (Exception e) {
-
+erro para ver se o deepseek encontra :)
             }
         } catch (Exception e) {
 
