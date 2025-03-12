@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class RMIGateway extends UnicastRemoteObject implements GatewayClientInterface, GatewayDownloaderInterface {
+public class RMIGateway extends UnicastRemoteObject implements RMIGatewayClientInterface, RMIGatewayDownloaderInterface {
     private LinkedBlockingQueue<String> urlQueue;
     private int urlSearchCount, urlSearchDepth;
 

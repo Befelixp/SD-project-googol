@@ -15,7 +15,7 @@ import java.io.IOException;
 public class RMIClient {
     private Scanner sc = new Scanner(System.in);
     private int id, characterLimit;
-    private GatewayClientInterface gateway;
+    private RMIGatewayClientInterface gateway;
 
     private void printmenu() {
         System.out.println("--------Menu--------");
@@ -29,7 +29,7 @@ public class RMIClient {
     }
 
     // Adicionado InterruptedException à declaração do método
-    public void opt(GatewayClientInterface gateway, int option) throws RemoteException, InterruptedException {
+    public void opt(RMIGatewayClientInterface gateway, int option) throws RemoteException, InterruptedException {
         switch (option) {
             case 1:
                 System.out.println("Enter the URL to index:");
@@ -107,7 +107,7 @@ public class RMIClient {
             client.characterLimit = Integer.parseInt(prop.getProperty("limChar"));
 
             // Conectar ao gateway
-            client.gateway = (GatewayClientInterface) Naming.lookup(registryN);
+            client.gateway = (RMIGatewayClientInterface) Naming.lookup(registryN);
             System.out.println("Connected to gateway: " + registryN);
 
             // Iniciar o cliente

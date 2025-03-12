@@ -18,7 +18,7 @@ public class Downloader {
             registryN = prop.getProperty("registryN");
             try {
                 // Parte do RMI
-                GatewayDownloaderInterface gateway = (GatewayDownloaderInterface) Naming.lookup(registryN);
+                RMIGatewayDownloaderInterface gateway = (RMIGatewayDownloaderInterface) Naming.lookup(registryN);
             } catch (Exception e) {
             }
         } catch (Exception e) {
