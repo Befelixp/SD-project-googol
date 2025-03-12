@@ -8,8 +8,8 @@ JAVA_OPTS="-Xmx512m -Xms256m"
 CLASSPATH="$project_root/target:$project_root/libs/jars/*"
 
 # Caminhos padrão
-input_path="$project_root/config/gateway.properties"
-output_path="$project_root/logs/gateway_$(date +%Y%m%d%H%M%S).log"
+input_path="$project_root/config/downloaders.properties"
+output_path="$project_root/logs/downloader_$(date +%Y%m%d%H%M%S).log"
 
 # Função para validar arquivo de propriedades
 validate_properties_file() {
@@ -25,15 +25,16 @@ validate_properties_file() {
 }
 
 
-
 # Processar argumentos da linha de comando
-while getopts ":p:o:h" opt; do
+while getopts ":i:p:o:h" opt; do
     case $opt in
+        i) id="$OPTARG"
+           ;;
         p) input_path="$OPTARG"
            ;;
         o) output_path="$OPTARG"
            ;;
-        h) echo "Usage: $0 [-p properties_file] [-o output_file]"
+        h) echo "Usage: $0 [-i id] [-p properties_file] [-o output_file]"
            exit 0
            ;;
         \?) echo "Invalid option -$OPTARG"
@@ -42,6 +43,12 @@ while getopts ":p:o:h" opt; do
     esac
 done
 
+# Verificar se o ID foi fornecido
+if [ -z "$id" ]; then
+    # Se não foi fornecido, usar ID padrão 1
+    id="1"
+fi
+
 # Validar arquivo de propriedades
 validate_properties_file "$input_path"
 
@@ -49,23 +56,13 @@ validate_properties_file "$input_path"
 mkdir -p "$(dirname "$output_path")"
 
 # Informações de execução
-echo "Starting RMI Gateway with:"
+echo "Starting Downloader with:"
+echo "- ID: $id"
 echo "- Properties file: $input_path"
 echo "- Log file: $output_path"
 echo "- Classpath: $CLASSPATH"
 
-# Executar o RMIGateway
+# Executar o Downloader
 cd "$project_root"
-java $JAVA_OPTS -cp "$CLASSPATH" meta1sd.RMIGateway "$input_path" > "$output_path" 2>&1 &
+java $JAVA_OPTS -cp "$CLASSPATH" meta1sd.Downloader "$id" "$input_path" > "$output_path" 2>&1 &
 
-
-# Verificar se o processo iniciou corretamente
-sleep 2
-if ps -p $gateway_pid > /dev/null 2>&1; then
-    echo "RMI Gateway started successfully with PID: $gateway_pid"
-    echo "To view logs: tail -f $output_path"
-else
-    echo "Error: Failed to start RMI Gateway"
-    rm -f "$pid_file"
-    exit 1
-fi
