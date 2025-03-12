@@ -8,7 +8,8 @@ import java.time.LocalDateTime;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class RMIGateway extends UnicastRemoteObject implements RMIGatewayClientInterface, RMIGatewayDownloaderInterface {
+public class RMIGateway extends UnicastRemoteObject
+        implements RMIGatewayClientInterface, RMIGatewayDownloaderInterface {
     private LinkedBlockingQueue<String> urlQueue;
     private int urlSearchCount, urlSearchDepth;
 
@@ -41,6 +42,10 @@ public class RMIGateway extends UnicastRemoteObject implements RMIGatewayClientI
         urlQueue.put(url);
         System.out.println(LocalDateTime.now() + " : URL " + url + " added to the queue.");
         urlSearchCount++;
+    }
+
+    public synchronized String popqueue() throws InterruptedException {
+        return urlQueue.take();
     }
 
     public static void main(String args[]) {
