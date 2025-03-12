@@ -1,7 +1,13 @@
 #!/bin/bash
 
+# Obter o diretório base do projeto
+project_root=$(dirname $(dirname $(realpath $0)))
+
 id=$(date +%N) 
 input_path="config/client.properties"
+
+# Configurar o CLASSPATH corretamente
+CLASSPATH="$project_root/target:$project_root/libs/jars/*"
 
 if [ $# -gt 0 ]; then
     if [[ $1 == *[^0-9]* ]]; then 
@@ -26,6 +32,6 @@ if [ $# -gt 1 ]; then
     fi
 fi
 
-java -cp .. meta1sd.RMIClient $id ../$input_path
-
-cd ..
+# Executar com o CLASSPATH correto
+cd "$project_root"
+java -cp "$CLASSPATH" meta1sd.RMIClient "$id" "$input_path"
