@@ -32,6 +32,7 @@ public class Downloader {
                 while (true) {
                     SiteData SiteData = new SiteData();
                     System.out.println("Pegando URLs");
+                    
                     SiteData.url = gateway.popqueue();
                     System.out.println("Tentando pegar queue");
 

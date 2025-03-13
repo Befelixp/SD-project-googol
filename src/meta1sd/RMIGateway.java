@@ -14,23 +14,16 @@ public class RMIGateway extends UnicastRemoteObject
     private int urlSearchCount, urlSearchDepth;
 
     public RMIGateway() throws RemoteException {
-        try {
-            urlQueue = new LinkedBlockingQueue<>();
-            urlQueue.put("https://www.youtube.com/");
-        } catch (InterruptedException e) {
-            System.err.println("Erro ao inicializar a fila: " + e.getMessage());
-            throw new RemoteException("Falha na inicialização da fila", e);
-        }
-
+        urlQueue = new LinkedBlockingQueue<>();
     }
 
     // Função para o cliente colocar uma URL na URLQueue
-    public synchronized void clientIndexUrl(String url) throws InterruptedException, RemoteException {
+    public void clientIndexUrl(String url) throws InterruptedException, RemoteException {
         if (urlQueue.contains(url)) {
             System.out.println(LocalDateTime.now() + " : URL (" + url + ") was already queued or indexed.");
             return;
         }
-        urlQueue.put(url);
+        urlQueue.offer(url);
         System.out.println(LocalDateTime.now() + " : URL " + url + " added to the queue.");
         urlSearchCount = 0;
         return;
@@ -46,12 +39,12 @@ public class RMIGateway extends UnicastRemoteObject
             System.out.println(LocalDateTime.now() + " : URL (" + url + ") was already queued or indexed.");
             return;
         }
-        urlQueue.put(url);
+        urlQueue.offer(url);
         System.out.println(LocalDateTime.now() + " : URL " + url + " added to the queue.");
         urlSearchCount++;
     }
 
-    public synchronized String popqueue() throws InterruptedException {
+    public String popqueue() throws InterruptedException {
         return urlQueue.take();
     }
 
