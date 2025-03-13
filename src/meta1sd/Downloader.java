@@ -31,8 +31,17 @@ public class Downloader {
                 String url = "";
                 while (true) {
                     SiteData SiteData = new SiteData();
-                    SiteData.url = gateway.popqueue();
                     System.out.println("Pegando URLs");
+                    SiteData.url = gateway.popqueue();
+                    System.out.println("Tentando pegar queue");
+
+                    if (SiteData.url == null) {
+                        System.out.println("Não tem nada, vou esperar!");
+                        // Se não há URLs para processar, aguarde um pouco
+                        Thread.sleep(1000);
+                        continue;
+                    }
+
                     if (SiteData.url != null) {
                         url = SiteData.url;
                         // SiteData.id = downloader.id;
@@ -65,6 +74,7 @@ public class Downloader {
                         }
                         SiteData.links = coupleLinks.toString().replace("\n", " ");
                         System.out.println("Links: " + SiteData.links);
+                        Thread.sleep(100);
                     }
                     System.out.println("Downloader fechando");
                 }

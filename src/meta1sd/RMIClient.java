@@ -34,7 +34,9 @@ public class RMIClient {
             case 1:
                 System.out.println("Enter the URL to index:");
                 String url = sc.nextLine();
+                System.out.println("Cliente passar pra rmi o URL: " + url);
                 gateway.clientIndexUrl(url);
+                System.out.println("Passou do rmi:");
                 break;
             case 2:
                 System.out.println("Enter search terms (separated by spaces):");
@@ -109,7 +111,7 @@ public class RMIClient {
             // Conectar ao gateway
             client.gateway = (RMIGatewayClientInterface) Naming.lookup(registryN);
             System.out.println("Connected to gateway: " + registryN);
-
+            
             // Iniciar o cliente
             client.initclient();
 

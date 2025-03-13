@@ -57,15 +57,3 @@ echo "- Classpath: $CLASSPATH"
 # Executar o RMIGateway
 cd "$project_root"
 java $JAVA_OPTS -cp "$CLASSPATH" meta1sd.RMIGateway "$input_path" > "$output_path" 2>&1 &
-
-
-# Verificar se o processo iniciou corretamente
-sleep 2
-if ps -p $gateway_pid > /dev/null 2>&1; then
-    echo "RMI Gateway started successfully with PID: $gateway_pid"
-    echo "To view logs: tail -f $output_path"
-else
-    echo "Error: Failed to start RMI Gateway"
-    rm -f "$pid_file"
-    exit 1
-fi

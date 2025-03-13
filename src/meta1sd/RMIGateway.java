@@ -14,7 +14,14 @@ public class RMIGateway extends UnicastRemoteObject
     private int urlSearchCount, urlSearchDepth;
 
     public RMIGateway() throws RemoteException {
-        urlQueue = new LinkedBlockingQueue<>();
+        try {
+            urlQueue = new LinkedBlockingQueue<>();
+            urlQueue.put("https://www.youtube.com/");
+        } catch (InterruptedException e) {
+            System.err.println("Erro ao inicializar a fila: " + e.getMessage());
+            throw new RemoteException("Falha na inicialização da fila", e);
+        }
+
     }
 
     // Função para o cliente colocar uma URL na URLQueue
@@ -23,7 +30,6 @@ public class RMIGateway extends UnicastRemoteObject
             System.out.println(LocalDateTime.now() + " : URL (" + url + ") was already queued or indexed.");
             return;
         }
-
         urlQueue.put(url);
         System.out.println(LocalDateTime.now() + " : URL " + url + " added to the queue.");
         urlSearchCount = 0;
