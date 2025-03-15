@@ -83,7 +83,8 @@ public class RMIClient {
             try {
                 opt(this.gateway, option);
             } catch (RemoteException e) {
-                System.out.println("Error communicating with server: " + e.getMessage());
+                System.out.println(
+                        "Error communicating with server: " + e.getMessage() + "\n Sua indexação não foi realizada!");
                 this.connected = false;
                 break;
             } catch (InterruptedException e) { // Adicionado tratamento para InterruptedException
@@ -116,8 +117,6 @@ public class RMIClient {
             int maxRetries = Integer.parseInt(prop.getProperty("maxRetries"));
             int currentRetry = 0;
 
-            Scanner scanner = new Scanner(System.in);
-
             while (!client.connected) {
                 try {
                     System.out.println("Tentativa " + (currentRetry + 1) + " de " + maxRetries +
@@ -138,7 +137,7 @@ public class RMIClient {
                     if (currentRetry >= maxRetries) {
                         System.out.println("\nFalha ao conectar com a gateway após " + maxRetries + " tentativas.");
                         System.out.print("Deseja continuar tentando? (S/N): ");
-                        String resposta = scanner.nextLine().trim().toUpperCase();
+                        String resposta = client.sc.nextLine().trim().toUpperCase();
 
                         if (resposta.equals("S")) {
                             currentRetry = 0; // Reset do contador de tentativas
@@ -158,7 +157,7 @@ public class RMIClient {
                     System.out.println("Erro inesperado: " + e.getMessage());
                     e.printStackTrace();
                     System.out.print("Deseja continuar tentando? (S/N): ");
-                    String resposta = scanner.nextLine().trim().toUpperCase();
+                    String resposta = client.sc.nextLine().trim().toUpperCase();
 
                     if (resposta.equals("S")) {
                         currentRetry = 0; // Reset do contador de tentativas
