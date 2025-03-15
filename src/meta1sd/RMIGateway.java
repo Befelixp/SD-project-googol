@@ -7,24 +7,28 @@ import java.rmi.server.UnicastRemoteObject;
 import java.time.LocalDateTime;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.HashSet;
 
 public class RMIGateway extends UnicastRemoteObject
         implements RMIGatewayClientInterface, RMIGatewayDownloaderInterface {
     private LinkedBlockingQueue<String> urlQueue;
     private int urlSearchCount, urlSearchDepth;
+    private HashSet<String> isqueued;
 
     public RMIGateway() throws RemoteException {
         urlQueue = new LinkedBlockingQueue<>();
+        isqueued = new HashSet<>();
     }
 
     // Função para o cliente colocar uma URL na URLQueue
     public void clientIndexUrl(String url) throws InterruptedException, RemoteException {
-        if (urlQueue.contains(url)) {
+        if (urlQueue.contains(url) || isqueued.contains(url)) {
             System.out.println(LocalDateTime.now() + " : URL (" + url + ") was already queued or indexed.");
             return;
         }
         urlQueue.offer(url);
         System.out.println(LocalDateTime.now() + " : URL " + url + " added to the queue.");
+        isqueued.add(url);
         urlSearchCount = 0;
         return;
     }
@@ -32,15 +36,16 @@ public class RMIGateway extends UnicastRemoteObject
     // Função pro crawler colocar URLs encontradas na URLQueue
     public synchronized void queueUrls(String url) throws InterruptedException {
         if (urlSearchCount > urlSearchDepth) {
-            System.out.println("URLSearch depth has reached the limit!");
+            // System.out.println("URLSearch depth has reached the limit!");
             return;
         }
-        if (urlQueue.contains(url)) {
+        if (urlQueue.contains(url) || isqueued.contains(url)) {
             System.out.println(LocalDateTime.now() + " : URL (" + url + ") was already queued or indexed.");
             return;
         }
         urlQueue.offer(url);
         System.out.println(LocalDateTime.now() + " : URL " + url + " added to the queue.");
+        isqueued.add(url);
         urlSearchCount++;
     }
 

@@ -1,5 +1,6 @@
 package meta1sd;
 
+import org.jsoup.HttpStatusException;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.rmi.Naming;
@@ -31,15 +32,12 @@ public class Downloader {
                 String url = "";
                 while (true) {
                     SiteData SiteData = new SiteData();
-                    System.out.println("Pegando URLs");
-                    
+
                     SiteData.url = gateway.popqueue();
-                    System.out.println("Tentando pegar queue");
-
-                    if (SiteData.url != null) {
-                        url = SiteData.url;
-                        // SiteData.id = downloader.id;
-
+                    System.out.println("Tentando pegar queue: " + SiteData.url);
+                    url = SiteData.url;
+                    // SiteData.id = downloader.id;
+                    try {
                         Document doc = Jsoup.connect(url).get();
 
                         // Title
@@ -68,9 +66,12 @@ public class Downloader {
                         }
                         SiteData.links = coupleLinks.toString().replace("\n", " ");
                         System.out.println("Links: " + SiteData.links);
+                    } catch (HttpStatusException e) {
+                        System.out.println("A url (" + url + ") não permite indexação!");
+                        continue;
                     }
-                    System.out.println("Downloader fechando");
                 }
+
             } catch (Exception e) {
                 System.out.println("Gateway Unreachable: " + e.getMessage());
                 e.printStackTrace();
