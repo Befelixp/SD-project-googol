@@ -8,6 +8,7 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
 import java.util.Properties;
 import java.util.Scanner;
+import java.net.ConnectException;
 import java.net.MalformedURLException;
 import java.rmi.NotBoundException;
 import java.io.IOException;
@@ -16,6 +17,7 @@ public class RMIClient {
     private Scanner sc = new Scanner(System.in);
     private int id, characterLimit;
     private RMIGatewayClientInterface gateway;
+    private boolean connected;
 
     private void printmenu() {
         System.out.println("--------Menu--------");
@@ -29,7 +31,8 @@ public class RMIClient {
     }
 
     // Adicionado InterruptedException à declaração do método
-    public void opt(RMIGatewayClientInterface gateway, int option) throws RemoteException, InterruptedException {
+    public void opt(RMIGatewayClientInterface gateway, int option)
+            throws RemoteException, InterruptedException {
         switch (option) {
             case 1:
                 System.out.println("Enter the URL to index:");
@@ -81,16 +84,17 @@ public class RMIClient {
                 opt(this.gateway, option);
             } catch (RemoteException e) {
                 System.out.println("Error communicating with server: " + e.getMessage());
+                this.connected = false;
+                break;
             } catch (InterruptedException e) { // Adicionado tratamento para InterruptedException
                 System.out.println("Operation was interrupted: " + e.getMessage());
-                Thread.currentThread().interrupt(); // Preserva o status de interrupção
+                Thread.currentThread().interrupt(); // Preserva o status de interrupçã
             }
         }
     }
 
     public static void main(String[] args) {
         try {
-            // Verificar argumentos
             if (args.length < 2) {
                 System.out.println("Usage: java meta1sd.RMIClient <clientID> <propertiesFile>");
                 System.exit(1);
@@ -108,16 +112,71 @@ public class RMIClient {
             String registryN = prop.getProperty("registryN");
             client.characterLimit = Integer.parseInt(prop.getProperty("limChar"));
 
-            // Conectar ao gateway
-            client.gateway = (RMIGatewayClientInterface) Naming.lookup(registryN);
-            System.out.println("Connected to gateway: " + registryN);
-            
-            // Iniciar o cliente
-            client.initclient();
+            // Tentativas de conexão com a gateway
+            int maxRetries = Integer.parseInt(prop.getProperty("maxRetries"));
+            int currentRetry = 0;
 
-        } catch (Exception e) {
-            System.out.println("Gateway Unreachable: " + e.getMessage());
+            Scanner scanner = new Scanner(System.in);
+
+            while (!client.connected) {
+                try {
+                    System.out.println("Tentativa " + (currentRetry + 1) + " de " + maxRetries +
+                            " para conectar à gateway...");
+
+                    client.gateway = (RMIGatewayClientInterface) Naming.lookup(registryN);
+                    client.connected = true;
+                    System.out.println("Conectado com sucesso à gateway: " + registryN);
+
+                    // Reset do contador de tentativas após conexão bem-sucedida
+                    currentRetry = 0;
+
+                    // Iniciar o cliente
+                    client.initclient();
+
+                } catch (RemoteException e) {
+                    currentRetry++;
+                    if (currentRetry >= maxRetries) {
+                        System.out.println("\nFalha ao conectar com a gateway após " + maxRetries + " tentativas.");
+                        System.out.print("Deseja continuar tentando? (S/N): ");
+                        String resposta = scanner.nextLine().trim().toUpperCase();
+
+                        if (resposta.equals("S")) {
+                            currentRetry = 0; // Reset do contador de tentativas
+                            System.out.println("Reiniciando tentativas de conexão...");
+                            continue;
+                        } else {
+                            System.out.println("Encerrando o programa...");
+                            System.exit(1);
+                        }
+                    }
+
+                    System.out.println("Falha ao conectar com a gateway: " + e.getMessage());
+                    System.out.println("Aguardando 5 segundos antes da próxima tentativa...");
+                    Thread.sleep(5000); // Espera 5 segundos
+
+                } catch (Exception e) {
+                    System.out.println("Erro inesperado: " + e.getMessage());
+                    e.printStackTrace();
+                    System.out.print("Deseja continuar tentando? (S/N): ");
+                    String resposta = scanner.nextLine().trim().toUpperCase();
+
+                    if (resposta.equals("S")) {
+                        currentRetry = 0; // Reset do contador de tentativas
+                        System.out.println("Reiniciando tentativas de conexão...");
+                        continue;
+                    } else {
+                        System.out.println("Encerrando o programa...");
+                        System.exit(1);
+                    }
+                }
+            }
+
+        } catch (
+
+        Exception e) {
+            System.out.println("Erro fatal: " + e.getMessage());
             e.printStackTrace();
+            System.exit(1);
         }
     }
 }
