@@ -16,13 +16,20 @@ public class Downloader {
 
     public static void main(String[] args) {
         String registryN;
+        int maxSizeText, maxSizeTitle, maxSizeTokens;
         System.out.println("Iniciando Downloader");
         try {
             Downloader downloader = new Downloader();
             Properties prop = new Properties();
             InputStream input = new FileInputStream(args[1]);
+            System.out.println("Carregando arquivo de propriedades");
             prop.load(input);
+            System.out.println("Arquivo de propriedades carregado");
             registryN = prop.getProperty("registryN");
+            System.out.println("registryN: " + registryN);
+            maxSizeText = Integer.parseInt(prop.getProperty("maxSizeText"));
+            maxSizeTitle = Integer.parseInt(prop.getProperty("maxSizeTitle"));
+            maxSizeTokens = Integer.parseInt(prop.getProperty("maxSizeTokens"));
 
             try {
                 System.out.println("Tentando RMI...");
@@ -31,28 +38,40 @@ public class Downloader {
                 System.out.println("Conexão RMI");
                 String url = "";
                 while (true) {
-                    SiteData SiteData = new SiteData();
-
-                    SiteData.url = gateway.popqueue();
-                    System.out.println("Tentando pegar queue: " + SiteData.url);
-                    url = SiteData.url;
-                    // SiteData.id = downloader.id;
                     try {
+                        SiteData SiteData = new SiteData();
+
+                        SiteData.url = gateway.popqueue();
+                        System.out.println("Tentando pegar queue: " + SiteData.url);
+                        url = SiteData.url;
+                        // SiteData.id = downloader.id;
+
                         Document doc = Jsoup.connect(url).get();
 
                         // Title
                         String title = doc.title();
+                        byte[] size = title.getBytes();
+                        int lim = Math.min(maxSizeTitle, size.length);
+                        title = new String(size, 0, lim);
                         SiteData.title = title.toLowerCase().replace("\n", " ");
                         System.out.println("Title: " + SiteData.title);
 
                         // Text
+                        String textCit;
                         Elements paragraphs = doc.select("p");
-                        SiteData.text = paragraphs.text().toLowerCase().replace("\n", " ");
+                        size = paragraphs.text().getBytes();
+                        lim = Math.min(maxSizeText, size.length);
+                        textCit = new String(size, 0, lim);
+                        SiteData.text = textCit.toLowerCase().replace("\n", " ");
                         System.out.println("Text: " + SiteData.text);
 
                         // Tokens
                         doc.select("button, .slide").remove();
+
                         String token = doc.text();
+                        size = token.getBytes();
+                        lim = Math.min(maxSizeTokens, size.length);
+                        token = new String(size, 0, lim);
                         SiteData.tokens = token.toLowerCase().replace("\n", " ");
                         System.out.println("Tokens: " + SiteData.tokens);
 
@@ -77,7 +96,8 @@ public class Downloader {
                 e.printStackTrace();
             }
         } catch (Exception e) {
-
+            System.out.println("Erro ao carregar arquivo de propriedades: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
