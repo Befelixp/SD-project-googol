@@ -54,8 +54,8 @@ public class RMIGateway extends UnicastRemoteObject
     }
 
     public static void main(String args[]) {
-        int gatewayClientPort, gatewayDownloaderPort;
-        String gatewayClientN, gatewayDownloaderN;
+        int gatewayClientPort, gatewayDownloaderPort, gatewayIBSDownloaderPort;
+        String gatewayClientN, gatewayDownloaderN, gatewayIBSDownloaderN;
 
         try {
             RMIGateway gateway = new RMIGateway();
@@ -68,6 +68,9 @@ public class RMIGateway extends UnicastRemoteObject
 
             gatewayDownloaderPort = Integer.parseInt(prop.getProperty("gatewayDownloaderPort"));
             gatewayDownloaderN = prop.getProperty("gatewayDownloaderN");
+
+            gatewayIBSDownloaderPort = Integer.parseInt(prop.getProperty("gatewayIBSDownloaderPort"));
+            gatewayIBSDownloaderN = prop.getProperty("gatewayIBSDownloader");
 
             gateway.urlSearchDepth = Integer.parseInt(prop.getProperty("urlSearchDepth"));
 
