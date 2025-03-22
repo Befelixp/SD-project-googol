@@ -3,9 +3,6 @@
 # Caminho absoluto para o diretório raiz do projeto
 project_root=$(dirname $(dirname $(realpath $0)))
 
-# Arquivo de log padrão
-log_file="$project_root/logs/downloader.log"
-
 # Encontrar o processo do Downloader
 downloader_pid=$(ps aux | grep "meta1sd.Downloader" | grep -v grep | awk '{print $2}')
 

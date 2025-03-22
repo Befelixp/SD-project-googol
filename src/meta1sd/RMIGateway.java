@@ -7,13 +7,17 @@ import java.rmi.server.UnicastRemoteObject;
 import java.time.LocalDateTime;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 
 public class RMIGateway extends UnicastRemoteObject
-        implements RMIGatewayClientInterface, RMIGatewayDownloaderInterface {
+        implements RMIGatewayClientInterface, RMIGatewayDownloaderInterface, RMIGatewayIBSDownloader {
     private LinkedBlockingQueue<String> urlQueue;
     private int urlSearchCount, urlSearchDepth;
     private HashSet<String> isqueued;
+
+    private Map<Integer, RMIIndexStorageBarrel> barrels = new HashMap<>();
 
     public RMIGateway() throws RemoteException {
         urlQueue = new LinkedBlockingQueue<>();
@@ -53,6 +57,12 @@ public class RMIGateway extends UnicastRemoteObject
         return urlQueue.take();
     }
 
+    public void registerIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
+        barrels.put(id, barrel);
+        System.out.println("Ping");
+        barrels.get(id).gatewaypong();
+    }
+
     public static void main(String args[]) {
         int gatewayClientPort, gatewayDownloaderPort, gatewayIBSDownloaderPort;
         String gatewayClientN, gatewayDownloaderN, gatewayIBSDownloaderN, gatewayClientRegistry,
@@ -80,11 +90,15 @@ public class RMIGateway extends UnicastRemoteObject
                 System.out.println("RMI Registry started on port " + gatewayClientPort);
                 System.out.println("Gateway registered as '" + gatewayClientN + "' on port " + gatewayClientPort);
 
-                java.rmi.registry.LocateRegistry.createRegistry(gatewayDownloaderPort).rebind(gatewayDownloaderN,gateway);
-                System.out.println("Gateway registered as '" + gatewayDownloaderN + "' on port " + gatewayDownloaderPort);
+                java.rmi.registry.LocateRegistry.createRegistry(gatewayDownloaderPort).rebind(gatewayDownloaderN,
+                        gateway);
+                System.out
+                        .println("Gateway registered as '" + gatewayDownloaderN + "' on port " + gatewayDownloaderPort);
 
-                java.rmi.registry.LocateRegistry.createRegistry(gatewayIBSDownloaderPort).rebind(gatewayIBSDownloaderN,gateway);
-                System.out.println("Gateway registered as '" + gatewayIBSDownloaderN + "' on port " + gatewayIBSDownloaderPort);
+                java.rmi.registry.LocateRegistry.createRegistry(gatewayIBSDownloaderPort).rebind(gatewayIBSDownloaderN,
+                        gateway);
+                System.out.println(
+                        "Gateway registered as '" + gatewayIBSDownloaderN + "' on port " + gatewayIBSDownloaderPort);
 
             } catch (Exception e) {
                 System.out.println("Error registering gateway: " + e.getMessage());
