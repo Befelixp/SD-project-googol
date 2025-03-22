@@ -7,6 +7,7 @@ import java.rmi.server.UnicastRemoteObject;
 import java.time.LocalDateTime;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingQueue;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -16,8 +17,8 @@ public class RMIGateway extends UnicastRemoteObject
     private LinkedBlockingQueue<String> urlQueue;
     private int urlSearchCount, urlSearchDepth;
     private HashSet<String> isqueued;
-
     private Map<Integer, RMIIndexStorageBarrel> barrels = new HashMap<>();
+    private Map<Integer, RMIDownloaderIBSGateway> downloaders = new HashMap<>();
 
     public RMIGateway() throws RemoteException {
         urlQueue = new LinkedBlockingQueue<>();
@@ -59,14 +60,32 @@ public class RMIGateway extends UnicastRemoteObject
 
     public void registerIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
         barrels.put(id, barrel);
-        System.out.println("Ping");
-        barrels.get(id).gatewaypong();
+        System.out.println("Barrel" + id + " registada!");
+        barrels.get(id).gatewaypong("Gateway");
+        barrels.get(id).registerallIBS(barrels, id, barrel);
+        downloaders.forEach((downid, down) -> {
+            try {
+                down.registerIBS(id, barrel);
+            } catch (RemoteException e) {
+                System.out.println("Downloader n existe mais, depois remover!");
+            }
+        });
+
+    }
+
+    public Map<Integer, RMIIndexStorageBarrel> getBarrels() throws RemoteException {
+        return barrels;
+    }
+
+    public void registerDownloader(int id, RMIDownloaderIBSGateway downloader) throws RemoteException {
+        downloaders.put(id, downloader);
+        System.out.println("Downloader" + id + " registada!");
+        downloader.registerExistingIBS(barrels);
     }
 
     public static void main(String args[]) {
         int gatewayClientPort, gatewayDownloaderPort, gatewayIBSDownloaderPort;
-        String gatewayClientN, gatewayDownloaderN, gatewayIBSDownloaderN, gatewayClientRegistry,
-                gatewayDownloaderRegistry, gatewayIBSDownloaderRegistry;
+        String gatewayClientN, gatewayDownloaderN, gatewayIBSDownloaderN;
 
         try {
             RMIGateway gateway = new RMIGateway();

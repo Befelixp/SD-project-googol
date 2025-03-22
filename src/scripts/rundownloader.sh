@@ -24,17 +24,24 @@ validate_properties_file() {
     fi
 }
 
+# Verificar se foi fornecido um ID como primeiro argumento
+if [ -z "$1" ]; then
+    echo "Error: Downloader ID must be provided as first argument!"
+    echo "Usage: $0 <id> [-p properties_file] [-o output_file]"
+    exit 1
+fi
+
+id=$1
+shift # Remove o primeiro argumento (ID) para processar as outras opções
 
 # Processar argumentos da linha de comando
-while getopts ":i:p:o:h" opt; do
+while getopts ":p:o:h" opt; do
     case $opt in
-        i) id="$OPTARG"
-           ;;
         p) input_path="$OPTARG"
            ;;
         o) output_path="$OPTARG"
            ;;
-        h) echo "Usage: $0 [-i id] [-p properties_file] [-o output_file]"
+        h) echo "Usage: $0 <id> [-p properties_file] [-o output_file]"
            exit 0
            ;;
         \?) echo "Invalid option -$OPTARG"
@@ -42,12 +49,6 @@ while getopts ":i:p:o:h" opt; do
             ;;
     esac
 done
-
-# Verificar se o ID foi fornecido
-if [ -z "$id" ]; then
-    # Se não foi fornecido, usar ID padrão 1
-    id="1"
-fi
 
 # Validar arquivo de propriedades
 validate_properties_file "$input_path"
@@ -65,4 +66,3 @@ echo "- Classpath: $CLASSPATH"
 # Executar o Downloader
 cd "$project_root"
 java $JAVA_OPTS -cp "$CLASSPATH" meta1sd.Downloader "$id" "$input_path" > "$output_path" 2>&1 &
-

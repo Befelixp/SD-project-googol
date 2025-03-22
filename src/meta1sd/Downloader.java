@@ -5,41 +5,78 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 
-public class Downloader {
+public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSGateway {
     private static final int RETRY_DELAY = 5000; // 5 segundos
+    private int downloaderId;
+    private Map<Integer, RMIIndexStorageBarrel> barrels = new HashMap<>();
+
+    public Downloader(int downloaderId) throws RemoteException {
+        this.downloaderId = downloaderId;
+    }
+
+    public void registerIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
+        barrels.put(id, barrel);
+        System.out.println("Barrel" + id + " registada!");
+        barrels.get(id).gatewaypong("Downloader" + this.downloaderId);
+    }
+
+    public void registerExistingIBS(Map<Integer, RMIIndexStorageBarrel> barrells) throws RemoteException {
+        // Adiciona todas as barrels recebidas ao mapa local
+        barrels.putAll(barrells);
+
+        // Imprime todas as barrels registradas
+        System.out.println("Barrels registradas no Downloader " + downloaderId + ":");
+        barrels.forEach((id, barrel) -> {
+            System.out.println("- Barrel ID: " + id);
+        });
+    }
+
+    public int getDownloader() {
+        return downloaderId;
+    }
 
     public static void main(String[] args) {
-        String registryN;
+        String registryN, registryNibs;
         int maxSizeText, maxSizeTitle, maxSizeTokens;
-        System.out.println("Iniciando Downloader");
 
         try {
-            Downloader downloader = new Downloader();
+            Downloader downloader = new Downloader(Integer.parseInt(args[0]));
             Properties prop = new Properties();
             InputStream input = new FileInputStream(args[1]);
+            System.out.println("Iniciando Downloader " + downloader.getDownloader());
             System.out.println("Carregando arquivo de propriedades");
             prop.load(input);
             System.out.println("Arquivo de propriedades carregado");
+
             registryN = prop.getProperty("registryN");
+            registryNibs = prop.getProperty("registryNibs");
+
             System.out.println("registryN: " + registryN);
             maxSizeText = Integer.parseInt(prop.getProperty("maxSizeText"));
             maxSizeTitle = Integer.parseInt(prop.getProperty("maxSizeTitle"));
             maxSizeTokens = Integer.parseInt(prop.getProperty("maxSizeTokens"));
 
             RMIGatewayDownloaderInterface gateway = null;
+            RMIGatewayIBSDownloader gatewayibs = null;
 
             while (true) { // Loop principal
                 try {
                     // Se gateway é null, tenta conectar
-                    if (gateway == null) {
+                    if (gateway == null || gatewayibs == null) {
                         System.out.println("Tentando conectar ao RMI...");
                         gateway = (RMIGatewayDownloaderInterface) Naming.lookup(registryN);
+                        gatewayibs = (RMIGatewayIBSDownloader) Naming.lookup(registryNibs);
+
+                        gatewayibs.registerDownloader(Integer.parseInt(args[0]), downloader);
                         System.out.println("Conexão RMI estabelecida com sucesso");
                     }
 
