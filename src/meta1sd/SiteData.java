@@ -1,6 +1,8 @@
 package meta1sd;
 
-public class SiteData {
+import java.io.Serializable;
+
+public class SiteData implements Serializable {
     public String id = "", url = "", title = "", text = "", tokens = "", links = "";
 
     public SiteData() {

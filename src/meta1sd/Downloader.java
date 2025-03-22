@@ -44,6 +44,17 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
         return downloaderId;
     }
 
+    private void sendToBarrels(SiteData siteData) {
+        barrels.forEach((id, barrel) -> {
+            try {
+                barrel.storeSiteData(siteData);
+                System.out.println("SiteData enviado para Barrel " + id);
+            } catch (RemoteException e) {
+                System.err.println("Erro ao enviar dados para Barrel " + id + ": " + e.getMessage());
+            }
+        });
+    }
+
     public static void main(String[] args) {
         String registryN, registryNibs;
         int maxSizeText, maxSizeTitle, maxSizeTokens;
@@ -130,6 +141,8 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                             }
                             siteData.links = coupleLinks.toString().replace("\n", " ");
                             System.out.println("Links: " + siteData.links);
+
+                            downloader.sendToBarrels(siteData);
 
                         } catch (HttpStatusException e) {
                             System.out.println("A url (" + siteData.url + ") não permite indexação!");

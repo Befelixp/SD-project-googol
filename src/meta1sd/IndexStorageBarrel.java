@@ -6,13 +6,16 @@ import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexStorageBarrel {
     private int barrelId;
     private Map<Integer, RMIIndexStorageBarrel> barrels = new HashMap<>();
+    private List<SiteData> siteDataList = new ArrayList<>();
 
     public IndexStorageBarrel(int barrelId) throws RemoteException {
         this.barrelId = barrelId;
@@ -50,6 +53,17 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     public void gatewaypong(String provider) throws RemoteException {
         System.out.println(provider + ":Pong");
+    }
+
+    @Override
+    public void storeSiteData(SiteData siteData) throws RemoteException {
+        siteDataList.add(siteData);
+        System.out.println("SiteData recebido e armazenado no Barrel " + barrelId + ":");
+        System.out.println("URL: " + siteData.url);
+        System.out.println("Title: " + siteData.title);
+        System.out.println("Text: " + siteData.text);
+        System.out.println("Tokens: " + siteData.tokens);
+        System.out.println("Links: " + siteData.links);
     }
 
     public static void main(String[] args) {
