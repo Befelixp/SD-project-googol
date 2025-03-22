@@ -103,7 +103,7 @@ public class Downloader {
                             break; // Sai do loop interno para tentar reconectar
                         }
                     }
-                } catch (Exception e) {
+                } catch (RemoteException e) {
                     System.out.println("Gateway não disponível: " + e.getMessage());
                     gateway = null; // Garante que gateway está null
                     try {

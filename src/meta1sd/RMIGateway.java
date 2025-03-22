@@ -55,7 +55,8 @@ public class RMIGateway extends UnicastRemoteObject
 
     public static void main(String args[]) {
         int gatewayClientPort, gatewayDownloaderPort, gatewayIBSDownloaderPort;
-        String gatewayClientN, gatewayDownloaderN, gatewayIBSDownloaderN;
+        String gatewayClientN, gatewayDownloaderN, gatewayIBSDownloaderN, gatewayClientRegistry,
+                gatewayDownloaderRegistry, gatewayIBSDownloaderRegistry;
 
         try {
             RMIGateway gateway = new RMIGateway();
@@ -70,24 +71,20 @@ public class RMIGateway extends UnicastRemoteObject
             gatewayDownloaderN = prop.getProperty("gatewayDownloaderN");
 
             gatewayIBSDownloaderPort = Integer.parseInt(prop.getProperty("gatewayIBSDownloaderPort"));
-            gatewayIBSDownloaderN = prop.getProperty("gatewayIBSDownloader");
+            gatewayIBSDownloaderN = prop.getProperty("gatewayIBSDownloaderN");
 
             gateway.urlSearchDepth = Integer.parseInt(prop.getProperty("urlSearchDepth"));
 
             try {
-                java.rmi.registry.LocateRegistry.createRegistry(gatewayClientPort);
+                java.rmi.registry.LocateRegistry.createRegistry(gatewayClientPort).rebind(gatewayClientN, gateway);
                 System.out.println("RMI Registry started on port " + gatewayClientPort);
-
-                // Registrar o objeto remoto no registro RMI
-                java.rmi.Naming.rebind("rmi://localhost:" + gatewayClientPort + "/" + gatewayClientN, gateway);
                 System.out.println("Gateway registered as '" + gatewayClientN + "' on port " + gatewayClientPort);
 
-                java.rmi.registry.LocateRegistry.createRegistry(gatewayDownloaderPort);
-                System.out.println("RMI Registry started on port " + gatewayDownloaderPort);
+                java.rmi.registry.LocateRegistry.createRegistry(gatewayDownloaderPort).rebind(gatewayDownloaderN,gateway);
+                System.out.println("Gateway registered as '" + gatewayDownloaderN + "' on port " + gatewayDownloaderPort);
 
-                java.rmi.Naming.rebind("rmi://localhost:" + gatewayDownloaderPort + "/" + gatewayDownloaderN, gateway);
-                System.out
-                        .println("Gateway registered as '" + gatewayDownloaderN + "' on port " + gatewayDownloaderPort);
+                java.rmi.registry.LocateRegistry.createRegistry(gatewayIBSDownloaderPort).rebind(gatewayIBSDownloaderN,gateway);
+                System.out.println("Gateway registered as '" + gatewayIBSDownloaderN + "' on port " + gatewayIBSDownloaderPort);
 
             } catch (Exception e) {
                 System.out.println("Error registering gateway: " + e.getMessage());
