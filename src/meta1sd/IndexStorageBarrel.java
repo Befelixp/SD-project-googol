@@ -143,7 +143,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         return urlReferences.getOrDefault(url, 0);
     }
 
-    public List<Map.Entry<String, Integer>> getPagesOrderedByIncomingLinks() {
+    public List<Map.Entry<String, Integer>> getPagesOrderedByIncomingLinks() throws RemoteException {
         List<Map.Entry<String, Integer>> sortedPages = new ArrayList<>(urlReferences.entrySet());
         sortedPages.sort((entry1, entry2) -> Integer.compare(entry2.getValue(), entry1.getValue()));
         return sortedPages;
@@ -208,8 +208,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     /**
      * Retorna o URL e os URLs que o referenciaram (links de entrada).
      */
-    public Map<String, List<String>> getIncomingLinksForUrl(String url) {
-        Map<String, List<String>> result = new HashMap<>();
+    public List<String> getIncomingLinksForUrl(String url) {
         List<String> referenciadores = incomingLinks.getOrDefault(url, new ArrayList<>());
         return referenciadores;
     }
