@@ -19,4 +19,6 @@ public interface RMIIndexStorageBarrel extends Remote {
             RMIIndexStorageBarrel mybarrel) throws RemoteException;
 
     public void registeroneIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException;
+
+    public Map<String, List<String>> getIncomingLinksForUrl(String url);
 }

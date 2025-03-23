@@ -1,6 +1,8 @@
 package meta1sd;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.InputStream;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
@@ -15,6 +17,10 @@ import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import java.io.FileReader;
+import com.google.gson.reflect.TypeToken;
 
 public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexStorageBarrel {
 
@@ -31,6 +37,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     public IndexStorageBarrel(int barrelId) throws RemoteException {
         this.barrelId = barrelId;
         System.out.println(LocalDateTime.now() + " : System " + barrelId + " is starting up");
+        carregarEstadoDeJSON("data/estado_barrel_" + barrelId + ".json");
     }
 
     public void registeroneIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
@@ -82,8 +89,20 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 urlReferences.put(link, urlReferences.getOrDefault(link, 0) + 1);
             }
         }
+        // Processar links e atualizar contagem de referências
+        if (siteData.links != null && !siteData.links.isEmpty()) {
+            String[] links = siteData.links.split("\\s+");
+            for (String link : links) {
+                urlReferences.put(link, urlReferences.getOrDefault(link, 0) + 1);
+
+                // Guardar quem está a apontar para o link
+                incomingLinks.computeIfAbsent(link, k -> new ArrayList<>()).add(siteData.url);
+            }
+        }
 
         System.out.println("Indexação concluída para URL: " + siteData.url);
+        saveState("data/estado_barrel_" + barrelId + ".json");
+
     }
 
     private void indexTokens(String tokens, String url) {
@@ -132,6 +151,68 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     public List<String> getPagesLinkingTo(String url) {
         return incomingLinks.getOrDefault(url, new ArrayList<>());
+    }
+
+    public void saveState(String caminhoArquivo) {
+        try {
+            Map<String, Object> estado = new HashMap<>();
+            estado.put("invertedIndex", invertedIndex);
+            estado.put("urlReferences", urlReferences);
+            estado.put("urlTexts", urlTexts);
+            estado.put("incomingLinks", incomingLinks);
+
+            Gson gson = new GsonBuilder().setPrettyPrinting().create();
+            String json = gson.toJson(estado);
+
+            try (FileWriter writer = new FileWriter(caminhoArquivo)) {
+                writer.write(json);
+            }
+
+            System.out.println("Estado salvo com sucesso no ficheiro JSON: " + caminhoArquivo);
+
+        } catch (Exception e) {
+            System.err.println("Erro ao salvar estado no ficheiro JSON:");
+            e.printStackTrace();
+        }
+    }
+
+    public void carregarEstadoDeJSON(String caminhoArquivo) {
+        File file = new File(caminhoArquivo);
+        if (!file.exists()) {
+            System.out.println("Nenhum estado salvo encontrado para esta barrel.");
+            return;
+        }
+
+        try (FileReader reader = new FileReader(file)) {
+            Gson gson = new Gson();
+            Map<String, Object> estado = gson.fromJson(reader, new TypeToken<Map<String, Object>>() {
+            }.getType());
+
+            // Restaurar cada mapa
+            urlReferences = gson.fromJson(gson.toJson(estado.get("urlReferences")),
+                    new TypeToken<Map<String, Integer>>() {
+                    }.getType());
+
+            invertedIndex = gson.fromJson(gson.toJson(estado.get("invertedIndex")),
+                    new TypeToken<Map<String, Set<String>>>() {
+                    }.getType());
+
+            System.out.println("Estado carregado com sucesso do ficheiro: " + caminhoArquivo);
+
+        } catch (Exception e) {
+            System.err.println("Erro ao carregar JSON:");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Retorna o URL e os URLs que o referenciaram (links de entrada).
+     */
+    public Map<String, List<String>> getIncomingLinksForUrl(String url) {
+        Map<String, List<String>> result = new HashMap<>();
+        List<String> referenciadores = incomingLinks.getOrDefault(url, new ArrayList<>());
+        result.put(url, referenciadores);
+        return result;
     }
 
     public static void main(String[] args) {
