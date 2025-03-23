@@ -1,17 +1,8 @@
 package meta1sd;
 
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.rmi.Naming;
-import java.rmi.RemoteException;
-import java.rmi.server.UnicastRemoteObject;
-import java.util.List;
-import java.util.Properties;
-import java.util.Scanner;
-import java.net.ConnectException;
-import java.net.MalformedURLException;
-import java.rmi.NotBoundException;
-import java.io.IOException;
+import java.io.*;
+import java.rmi.*;
+import java.util.*;
 
 public class RMIClient {
     private Scanner sc = new Scanner(System.in);
@@ -19,54 +10,98 @@ public class RMIClient {
     private RMIGatewayClientInterface gateway;
     private boolean connected;
 
-    private void printmenu() {
-        System.out.println("--------Menu--------");
-        System.out.println("1) Index URL");
-        System.out.println("2) Search for terms");
-        System.out.println("3) List pages linked to a specific page");
-        System.out.println("4) Administration page");
-        System.out.println("5) Exit");
-        System.out.println("--------------------");
-        System.out.println("Choose an option:");
+    // Cores ANSI
+    private static final String RESET = "\u001B[0m";
+    private static final String CYAN = "\u001B[36m";
+    private static final String YELLOW = "\u001B[33m";
+    private static final String GREEN = "\u001B[32m";
+    private static final String RED = "\u001B[31m";
+    private static final String PURPLE = "\u001B[35m";
+
+    private void printSeparator() {
+        System.out.println(PURPLE + "═══════════════════════════════════════════════════════════" + RESET);
     }
 
-    // Adicionado InterruptedException à declaração do método
-    public void opt(RMIGatewayClientInterface gateway, int option)
-            throws RemoteException, InterruptedException {
+    private void printmenu() {
+        clearScreen();
+        printSeparator();
+        System.out.println(CYAN + "                    SEARCH ENGINE CLIENT" + RESET);
+        printSeparator();
+        System.out.println(YELLOW + "                     Available Options" + RESET);
+        System.out.println();
+        System.out.println(GREEN + " [1] " + RESET + "Index a New URL");
+        System.out.println(GREEN + " [2] " + RESET + "Search for Terms");
+        System.out.println(GREEN + " [3] " + RESET + "List Linked Pages");
+        System.out.println(GREEN + " [4] " + RESET + "Administration Panel");
+        System.out.println(RED + " [5] " + RESET + "Exit Application");
+        printSeparator();
+        System.out.print(YELLOW + "Enter your choice: " + RESET);
+    }
+
+    private void clearScreen() {
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+    }
+
+    public void opt(RMIGatewayClientInterface gateway, int option) throws RemoteException, InterruptedException {
+        clearScreen();
+        printSeparator();
+
         switch (option) {
             case 1:
-                System.out.println("Enter the URL to index:");
+                System.out.println(CYAN + "           INDEX NEW URL" + RESET);
+                printSeparator();
+                System.out.print(YELLOW + "Enter the URL to index: " + RESET);
                 String url = sc.nextLine();
-                System.out.println("Cliente passar pra rmi o URL: " + url);
+                System.out.println(PURPLE + "\nProcessing request..." + RESET);
                 gateway.clientIndexUrl(url);
-                System.out.println("Passou do rmi:");
+                System.out.println(GREEN + "\n✓ URL successfully submitted for indexing!" + RESET);
                 break;
+
             case 2:
-                System.out.println("Enter search terms (separated by spaces):");
+                System.out.println(CYAN + "           SEARCH TERMS" + RESET);
+                printSeparator();
+                System.out.print(YELLOW + "Enter search terms (separated by spaces): " + RESET);
                 String terms = sc.nextLine();
-                // Assumindo que existe um método para buscar termos
+                System.out.println(PURPLE + "\nSearching..." + RESET);
                 // gateway.searchTerms(terms);
                 break;
+
             case 3:
-                System.out.println("Enter the URL to find linked pages:");
+                System.out.println(CYAN + "           LINKED PAGES" + RESET);
+                printSeparator();
+                System.out.print(YELLOW + "Enter the URL to find linked pages: " + RESET);
                 String pageUrl = sc.nextLine();
-                // Assumindo que existe um método para listar páginas vinculadas
+                System.out.println(PURPLE + "\nFetching linked pages..." + RESET);
                 // gateway.getLinkedPages(pageUrl);
                 break;
+
             case 4:
-                System.out.println("Administration page - functionality not implemented");
+                System.out.println(CYAN + "           ADMINISTRATION PANEL" + RESET);
+                printSeparator();
+                System.out.println(RED + "⚠ This feature is currently not implemented." + RESET);
                 break;
+
             case 5:
-                System.out.println("Exiting...");
+                System.out.println(CYAN + "           EXITING APPLICATION" + RESET);
+                printSeparator();
+                System.out.println(YELLOW + "Thank you for using the Search Engine Client!" + RESET);
                 break;
+
             default:
-                System.out.println("Invalid option!");
+                System.out.println(RED + "❌ Invalid option selected!" + RESET);
+        }
+
+        if (option != 5) {
+            System.out.println("\nPress ENTER to continue...");
+            sc.nextLine();
         }
     }
 
     private static int isIntger(Scanner sc) {
         while (!sc.hasNextInt()) {
-            System.out.println("It must be an integer!");
+            System.out.println(RED + "❌ Please enter a valid number!" + RESET);
+            System.out.print(YELLOW + "Enter your choice: " + RESET);
             sc.next();
         }
         int opt = sc.nextInt();
@@ -83,13 +118,13 @@ public class RMIClient {
             try {
                 opt(this.gateway, option);
             } catch (RemoteException e) {
-                System.out.println(
-                        "Error communicating with server: " + e.getMessage() + "\n Sua indexação não foi realizada!");
+                System.out.println(RED + "\n❌ Error communicating with server: " + e.getMessage() +
+                        "\n   Your indexation was not completed!" + RESET);
                 this.connected = false;
                 break;
-            } catch (InterruptedException e) { // Adicionado tratamento para InterruptedException
-                System.out.println("Operation was interrupted: " + e.getMessage());
-                Thread.currentThread().interrupt(); // Preserva o status de interrupçã
+            } catch (InterruptedException e) {
+                System.out.println(RED + "\n❌ Operation was interrupted: " + e.getMessage() + RESET);
+                Thread.currentThread().interrupt();
             }
         }
     }

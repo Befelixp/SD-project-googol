@@ -10,6 +10,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
+import java.util.List;
 import java.util.Map;
 
 public class RMIGateway extends UnicastRemoteObject
@@ -38,10 +40,14 @@ public class RMIGateway extends UnicastRemoteObject
         return;
     }
 
-
-
-    
-
+    public List<String> returnPagesbyWords(String words) throws RemoteException {
+        Set<String> wordsSet = new HashSet<>();
+        String[] wordsArray = words.split(" ");
+        for (String word : wordsArray) {
+            wordsSet.add(word);
+        }
+        return barrels.get(1).searchPagesByWords(wordsSet);
+    }
 
     // Função pro crawler colocar URLs encontradas na URLQueue
     public synchronized void queueUrls(String url) throws InterruptedException {

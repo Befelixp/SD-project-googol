@@ -24,16 +24,15 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     // Estruturas para indexação e rastreamento
     private Map<String, Set<String>> invertedIndex = new HashMap<>(); // Palavras -> URLs
     private Map<String, Integer> urlReferences = new HashMap<>(); // URL -> contagem de referências
+    private Map<String, String> urlTexts = new HashMap<>(); // URL -> Texto associado
 
     private Map<String, List<String>> incomingLinks = new HashMap<>();
-
 
     public IndexStorageBarrel(int barrelId) throws RemoteException {
         this.barrelId = barrelId;
         System.out.println(LocalDateTime.now() + " : System " + barrelId + " is starting up");
     }
 
-    
     public void registeroneIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
         // Não registra se for ela mesma
         if (id != this.barrelId) {
