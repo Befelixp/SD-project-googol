@@ -211,8 +211,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     public Map<String, List<String>> getIncomingLinksForUrl(String url) {
         Map<String, List<String>> result = new HashMap<>();
         List<String> referenciadores = incomingLinks.getOrDefault(url, new ArrayList<>());
-        result.put(url, referenciadores);
-        return result;
+        return referenciadores;
     }
 
     public static void main(String[] args) {
