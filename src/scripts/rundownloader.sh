@@ -7,13 +7,16 @@ project_root=$(dirname $(dirname $(realpath $0)))
 JAVA_OPTS="-Xmx512m -Xms256m"
 CLASSPATH="$project_root/target:$project_root/libs/jars/*"
 
-# Caminhos padrão
-input_path="$project_root/config/downloaders.properties"
-output_path="$project_root/logs/downloader_$(date +%Y%m%d%H%M%S).log"
-
 # Função para imprimir linha separadora
 print_separator() {
     echo "═══════════════════════════════════════════════════════════════════════════"
+}
+
+# Função para formatar o nome do arquivo de log
+format_log_filename() {
+    local id=$1
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    echo "$project_root/logs/downloader_${id}_${timestamp}.log"
 }
 
 # Função para validar arquivo de propriedades
@@ -37,7 +40,12 @@ if [ -z "$1" ]; then
 fi
 
 id=$1
+# Formatar o nome do arquivo de log com o ID
+output_path=$(format_log_filename "$id")
 shift # Remove o primeiro argumento (ID) para processar as outras opções
+
+# Caminhos padrão
+input_path="$project_root/config/downloaders.properties"
 
 # Processar argumentos da linha de comando
 while getopts ":p:o:h" opt; do
@@ -67,7 +75,7 @@ print_separator
 echo -e "\n📥 DOWNLOADER SERVICE INITIALIZATION\n"
 print_separator
 echo -e "\n📋 Configuration Details:"
-echo -e "  • ID: \033[1;36m$id\033[0m"
+echo -e "  • Downloader ID: \033[1;36m$id\033[0m"
 echo -e "  • Properties File: \033[1;33m$input_path\033[0m"
 echo -e "  • Log File: \033[1;33m$output_path\033[0m"
 echo -e "  • Classpath: \033[0;32m$CLASSPATH\033[0m\n"
@@ -81,6 +89,16 @@ PID=$!
 # Imprimir informações do processo
 echo -e "\n🚀 Service Started Successfully!"
 echo -e "📌 Process ID (PID): \033[1;35m$PID\033[0m"
-echo -e "💡 To stop the service, use: \033[1;31mkill $PID\033[0m\n"
+echo -e "💡 To stop the service, use: \033[1;31mkill $PID\033[0m"
+echo -e "📝 Log file: \033[1;33m$output_path\033[0m\n"
+print_separator
+
+# Aguardar um momento para verificar se o processo iniciou corretamente
+sleep 2
+if ps -p $PID > /dev/null; then
+    echo -e "✅ Downloader $id is running properly\n"
+else
+    echo -e "❌ Downloader $id failed to start. Check logs at: $output_path\n"
+fi
 print_separator
 echo ""

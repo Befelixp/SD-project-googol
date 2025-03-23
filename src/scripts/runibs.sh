@@ -7,9 +7,15 @@ project_root=$(dirname $(dirname $(realpath $0)))
 JAVA_OPTS="-Xmx512m -Xms256m"
 CLASSPATH="$project_root/target:$project_root/libs/jars/*"
 
+# Função para formatar o nome do arquivo de log
+format_log_filename() {
+    local barrel_id=$1
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    echo "$project_root/logs/barrel_${barrel_id}_${timestamp}.log"
+}
+
 # Caminhos padrão
 input_path="$project_root/config/indexstoragebarrels.properties"
-output_path="$project_root/logs/ibs_$(date +%Y%m%d%H%M%S).log"
 barrel_id=""
 
 # Função para imprimir linha separadora
@@ -72,6 +78,11 @@ fi
 # Validar ID da barrel
 validate_barrel_id "$barrel_id"
 
+# Definir o nome do arquivo de log se não foi especificado
+if [ -z "$output_path" ]; then
+    output_path=$(format_log_filename "$barrel_id")
+fi
+
 # Validar arquivo de propriedades
 validate_properties_file "$input_path"
 
@@ -98,6 +109,16 @@ PID=$!
 # Imprimir informações do processo
 echo -e "\n🚀 Service Started Successfully!"
 echo -e "📌 Process ID (PID): \033[1;35m$PID\033[0m"
-echo -e "💡 To stop the service, use: \033[1;31mkill $PID\033[0m\n"
+echo -e "💡 To stop the service, use: \033[1;31mkill $PID\033[0m"
+echo -e "📝 Log file: \033[1;33m$output_path\033[0m\n"
+print_separator
+
+# Aguardar um momento para verificar se o processo iniciou corretamente
+sleep 2
+if ps -p $PID > /dev/null; then
+    echo -e "✅ Barrel $barrel_id is running properly\n"
+else
+    echo -e "❌ Barrel $barrel_id failed to start. Check logs at: $output_path\n"
+fi
 print_separator
 echo ""

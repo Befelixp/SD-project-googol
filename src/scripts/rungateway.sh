@@ -7,9 +7,16 @@ project_root=$(dirname $(dirname $(realpath $0)))
 JAVA_OPTS="-Xmx512m -Xms256m"
 CLASSPATH="$project_root/target:$project_root/libs/jars/*"
 
+# Função para formatar o nome do arquivo de log
+format_log_filename() {
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local hostname=$(hostname)
+    echo "$project_root/logs/gateway_${hostname}_${timestamp}.log"
+}
+
 # Caminhos padrão
 input_path="$project_root/config/gateway.properties"
-output_path="$project_root/logs/gateway_$(date +%Y%m%d%H%M%S).log"
+output_path=$(format_log_filename)
 
 # Função para imprimir linha separadora
 print_separator() {
@@ -71,12 +78,15 @@ cd "$project_root"
 java $JAVA_OPTS -cp "$CLASSPATH" meta1sd.RMIGateway "$input_path" > "$output_path" 2>&1 &
 PID=$!
 
+# Criar um link simbólico para o log mais recente
+ln -sf "$output_path" "$project_root/logs/gateway_latest.log"
+
 # Imprimir informações do processo
 echo -e "\n🚀 Gateway Service Started Successfully!"
 echo -e "📌 Process ID (PID): \033[1;35m$PID\033[0m"
-echo -e "💡 To stop the gateway, use: \033[1;31mkill $PID\033[0m\n"
+echo -e "💡 To stop the gateway, use: \033[1;31mkill $PID\033[0m"
+echo -e "📝 Latest log symlink: \033[1;33m$project_root/logs/gateway_latest.log\033[0m\n"
 print_separator
-echo ""
 
 # Aguardar um momento para verificar se o processo iniciou corretamente
 sleep 2
