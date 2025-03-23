@@ -7,15 +7,25 @@ import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.LinkedBlockingDeque;
 
 public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexStorageBarrel {
+
     private int barrelId;
     private Map<Integer, RMIIndexStorageBarrel> barrels = new HashMap<>();
-    private List<SiteData> siteDataList = new ArrayList<>();
+
+    // Estruturas para indexação e rastreamento
+    private Map<String, Set<String>> invertedIndex = new HashMap<>(); // Palavras -> URLs
+    private Map<String, Integer> urlReferences = new HashMap<>(); // URL -> contagem de referências
+
+    private Map<String, List<String>> incomingLinks = new HashMap<>();
 
     public IndexStorageBarrel(int barrelId) throws RemoteException {
         this.barrelId = barrelId;
@@ -57,13 +67,70 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     @Override
     public void storeSiteData(SiteData siteData) throws RemoteException {
-        siteDataList.add(siteData);
-        System.out.println("SiteData recebido e armazenado no Barrel " + barrelId + ":");
-        System.out.println("URL: " + siteData.url);
-        System.out.println("Title: " + siteData.title);
-        System.out.println("Text: " + siteData.text);
-        System.out.println("Tokens: " + siteData.tokens);
-        System.out.println("Links: " + siteData.links);
+        System.out.println("Recebendo SiteData para indexação: " + siteData.url);
+
+        // Indexar tokens
+        if (siteData.tokens != null && !siteData.tokens.isEmpty()) {
+            indexTokens(siteData.tokens, siteData.url);
+        }
+
+        // Processar links e atualizar contagem de referências
+        if (siteData.links != null && !siteData.links.isEmpty()) {
+            String[] links = siteData.links.split("\\s+");
+            for (String link : links) {
+                urlReferences.put(link, urlReferences.getOrDefault(link, 0) + 1);
+            }
+        }
+
+        System.out.println("Indexação concluída para URL: " + siteData.url);
+    }
+
+    private void indexTokens(String tokens, String url) {
+        String[] tokenArray = tokens.split("\\s+");
+        for (String token : tokenArray) {
+            token = token.toLowerCase().replaceAll("[^a-z0-9]", ""); // Normaliza tokens
+            if (token.isEmpty())
+                continue;
+
+            invertedIndex.computeIfAbsent(token, k -> new HashSet<>()).add(url);
+        }
+    }
+
+    // Métodos adicionais para consulta
+    public List<String> searchPagesByWords(Set<String> words) {
+        List<String> result = new ArrayList<>();
+        Map<String, Integer> pageMatchCount = new HashMap<>();
+
+        for (String word : words) {
+            Set<String> pages = invertedIndex.get(word.toLowerCase());
+            if (pages != null) {
+                for (String page : pages) {
+                    pageMatchCount.put(page, pageMatchCount.getOrDefault(page, 0) + 1);
+                }
+            }
+        }
+
+        // Filtrar apenas as páginas que contêm todas as palavras
+        for (Map.Entry<String, Integer> entry : pageMatchCount.entrySet()) {
+            if (entry.getValue() == words.size()) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    public int getUrlReferenceCount(String url) {
+        return urlReferences.getOrDefault(url, 0);
+    }
+
+    public List<Map.Entry<String, Integer>> getPagesOrderedByIncomingLinks() {
+        List<Map.Entry<String, Integer>> sortedPages = new ArrayList<>(urlReferences.entrySet());
+        sortedPages.sort((entry1, entry2) -> Integer.compare(entry2.getValue(), entry1.getValue()));
+        return sortedPages;
+    }
+
+    public List<String> getPagesLinkingTo(String url) {
+        return incomingLinks.getOrDefault(url, new ArrayList<>());
     }
 
     public static void main(String[] args) {
@@ -83,6 +150,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             try {
                 gateway = (RMIGatewayIBSDownloader) Naming.lookup(registryNibs);
                 gateway.registerIBS(barrel.barrelId, barrel);
+
             } catch (RemoteException e) {
                 e.printStackTrace();
             }

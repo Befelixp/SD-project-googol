@@ -11,7 +11,7 @@ public class SiteData implements Serializable {
 
     @Override
     public String toString() {
-        return "type0\n" + url + "\n" + title + "\n" + text + "\n" + tokens + "\n" + links;
+        return url + "\n" + title + "\n" + text + "\n" + tokens + "\n" + links;
     }
 
 }
