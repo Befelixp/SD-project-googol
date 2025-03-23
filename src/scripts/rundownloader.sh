@@ -11,22 +11,27 @@ CLASSPATH="$project_root/target:$project_root/libs/jars/*"
 input_path="$project_root/config/downloaders.properties"
 output_path="$project_root/logs/downloader_$(date +%Y%m%d%H%M%S).log"
 
+# Função para imprimir linha separadora
+print_separator() {
+    echo "═══════════════════════════════════════════════════════════════════════════"
+}
+
 # Função para validar arquivo de propriedades
 validate_properties_file() {
     local file=$1
     if [ ! -f "$file" ]; then
-        echo "Error: Properties file $file does not exist!"
+        echo "❌ Error: Properties file $file does not exist!"
         exit 1
     fi
     if [ "$(echo "$file" | grep '\.properties$')" = "" ]; then
-        echo "Error: File must have .properties extension!"
+        echo "❌ Error: File must have .properties extension!"
         exit 1
     fi
 }
 
 # Verificar se foi fornecido um ID como primeiro argumento
 if [ -z "$1" ]; then
-    echo "Error: Downloader ID must be provided as first argument!"
+    echo "❌ Error: Downloader ID must be provided as first argument!"
     echo "Usage: $0 <id> [-p properties_file] [-o output_file]"
     exit 1
 fi
@@ -44,7 +49,7 @@ while getopts ":p:o:h" opt; do
         h) echo "Usage: $0 <id> [-p properties_file] [-o output_file]"
            exit 0
            ;;
-        \?) echo "Invalid option -$OPTARG"
+        \?) echo "❌ Invalid option -$OPTARG"
             exit 1
             ;;
     esac
@@ -57,12 +62,25 @@ validate_properties_file "$input_path"
 mkdir -p "$(dirname "$output_path")"
 
 # Informações de execução
-echo "Starting Downloader with:"
-echo "- ID: $id"
-echo "- Properties file: $input_path"
-echo "- Log file: $output_path"
-echo "- Classpath: $CLASSPATH"
+clear
+print_separator
+echo -e "\n📥 DOWNLOADER SERVICE INITIALIZATION\n"
+print_separator
+echo -e "\n📋 Configuration Details:"
+echo -e "  • ID: \033[1;36m$id\033[0m"
+echo -e "  • Properties File: \033[1;33m$input_path\033[0m"
+echo -e "  • Log File: \033[1;33m$output_path\033[0m"
+echo -e "  • Classpath: \033[0;32m$CLASSPATH\033[0m\n"
+print_separator
 
 # Executar o Downloader
 cd "$project_root"
 java $JAVA_OPTS -cp "$CLASSPATH" meta1sd.Downloader "$id" "$input_path" > "$output_path" 2>&1 &
+PID=$!
+
+# Imprimir informações do processo
+echo -e "\n🚀 Service Started Successfully!"
+echo -e "📌 Process ID (PID): \033[1;35m$PID\033[0m"
+echo -e "💡 To stop the service, use: \033[1;31mkill $PID\033[0m\n"
+print_separator
+echo ""

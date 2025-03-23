@@ -38,6 +38,11 @@ public class RMIGateway extends UnicastRemoteObject
         return;
     }
 
+
+
+    
+
+
     // Função pro crawler colocar URLs encontradas na URLQueue
     public synchronized void queueUrls(String url) throws InterruptedException {
         if (urlSearchCount > urlSearchDepth) {
