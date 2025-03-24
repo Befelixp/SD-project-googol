@@ -70,7 +70,6 @@ validate_properties_file "$input_path"
 mkdir -p "$(dirname "$output_path")"
 
 # Informações de execução
-clear
 print_separator
 echo -e "\n📥 DOWNLOADER SERVICE INITIALIZATION\n"
 print_separator

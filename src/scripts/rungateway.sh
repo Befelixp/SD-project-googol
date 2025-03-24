@@ -62,8 +62,6 @@ validate_properties_file "$input_path"
 # Criar diretório de logs se não existir
 mkdir -p "$(dirname "$output_path")"
 
-# Limpar a tela e mostrar informações de execução
-clear
 print_separator
 echo -e "\n🌐 RMI GATEWAY INITIALIZATION\n"
 print_separator
