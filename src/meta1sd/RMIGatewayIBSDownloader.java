@@ -10,7 +10,7 @@ public interface RMIGatewayIBSDownloader extends Remote {
 
     public void registerIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException;
 
-    public void registerDownloader(int id, RMIDownloaderIBSGateway downloader) throws RemoteException;
-
     public Map<Integer, RMIIndexStorageBarrel> getBarrels() throws RemoteException;
+
+    public RMIIndexStorageBarrel getRandomBarrel() throws RemoteException;
 }

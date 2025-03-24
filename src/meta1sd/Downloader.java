@@ -5,75 +5,107 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
-import java.rmi.server.UnicastRemoteObject;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 
-public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSGateway {
+public class Downloader {
     private static final int RETRY_DELAY = 5000; // 5 segundos
-    private int downloaderId;
-    private Map<Integer, RMIIndexStorageBarrel> barrels = new HashMap<>();
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private RMIGatewayIBSDownloader gatewayibs;
 
-    public Downloader(int downloaderId) throws RemoteException {
-        this.downloaderId = downloaderId;
+    public Downloader() {
+        // Construtor simples sem ID
     }
 
-    public void registerIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
-        barrels.put(id, barrel);
-        System.out.println("Barrel" + id + " registada!");
-        barrels.get(id).gatewaypong("Downloader" + this.downloaderId);
+    // Método para configurar o gateway
+    public void setGateway(RMIGatewayIBSDownloader gateway) {
+        this.gatewayibs = gateway;
+        System.out.println(getTimestamp() + " : Gateway configurado com sucesso");
     }
 
-    public void registerExistingIBS(Map<Integer, RMIIndexStorageBarrel> barrells) throws RemoteException {
-        // Adiciona todas as barrels recebidas ao mapa local
-        barrels.putAll(barrells);
-
-        // Imprime todas as barrels registradas
-        System.out.println("Barrels registradas no Downloader " + downloaderId + ":");
-        barrels.forEach((id, barrel) -> {
-            System.out.println("- Barrel ID: " + id);
-        });
-    }
-
-    public int getDownloader() {
-        return downloaderId;
+    private String getTimestamp() {
+        return LocalDateTime.now().format(TIME_FORMATTER);
     }
 
     private boolean sendToBarrels(SiteData siteData) {
-        for (Map.Entry<Integer, RMIIndexStorageBarrel> entry : barrels.entrySet()) {
-            int id = entry.getKey();
-            RMIIndexStorageBarrel barrel = entry.getValue();
+        if (gatewayibs == null) {
+            System.err.println(getTimestamp() + " : ❌ Erro: Gateway não configurado. Não é possível enviar dados.");
+            return false;
+        }
 
+        // Número máximo de tentativas
+        final int MAX_RETRIES = 3;
+        // Tempo de espera inicial entre tentativas (500ms)
+        int waitTime = 500;
+
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                barrel.storeSiteData(siteData);
+                // Obter uma barrel aleatória do gateway
                 System.out.printf(
-                        "[%s] ✅ Sucesso: SiteData enviado para Barrel %d - URL: %s%n",
-                        LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                        id,
+                        "[%s] 🔄 Tentativa %d de %d: Solicitando barrel aleatória do gateway...%n",
+                        getTimestamp(),
+                        attempt, MAX_RETRIES);
+
+                RMIIndexStorageBarrel barrel = gatewayibs.getRandomBarrel();
+
+                if (barrel == null) {
+                    System.out.printf(
+                            "[%s] ⚠️ Nenhuma barrel disponível no momento. Aguardando %dms antes de tentar novamente...%n",
+                            getTimestamp(),
+                            waitTime);
+
+                    // Aguardar antes de tentar novamente com backoff exponencial
+                    Thread.sleep(waitTime);
+                    waitTime *= 2; // Dobra o tempo de espera a cada tentativa
+                    continue;
+                }
+
+                // Tenta enviar para a barrel obtida
+                barrel.storeSiteData(siteData);
+
+                System.out.printf(
+                        "[%s] ✅ Sucesso: SiteData enviado para barrel - URL: %s%n",
+                        getTimestamp(),
                         siteData.url);
-                return true; // Retorna true após enviar com sucesso para uma barrel
+
+                return true;
+
             } catch (RemoteException e) {
                 System.err.printf(
-                        "[%s] ❌ Erro: Falha ao enviar SiteData para Barrel %d - URL: %s - Erro: %s%n",
-                        LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                        id,
+                        "[%s] ❌ Erro: Falha ao enviar SiteData - URL: %s - Erro: %s%n",
+                        getTimestamp(),
                         siteData.url,
                         e.getMessage());
+
+                // A exceção já foi tratada no gateway, que deve ter removido a barrel
+                // problemática
+                // Apenas aguardamos um pouco para a próxima tentativa
+                try {
+                    Thread.sleep(waitTime);
+                    waitTime *= 2; // Backoff exponencial
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
             }
         }
 
         System.err.printf(
-                "[%s] ❌ Falha: Não foi possível enviar SiteData para nenhuma barrel - URL: %s%n",
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                "[%s] ❌ Falha: Não foi possível enviar SiteData após %d tentativas - URL: %s%n",
+                getTimestamp(),
+                MAX_RETRIES,
                 siteData.url);
-        return false; // Retorna false se não conseguiu enviar para nenhuma barrel
+
+        return false;
     }
 
     public static void main(String[] args) {
@@ -81,18 +113,28 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
         int maxSizeText, maxSizeTitle, maxSizeTokens;
 
         try {
-            Downloader downloader = new Downloader(Integer.parseInt(args[0]));
+            // Verificar se temos pelo menos um argumento (arquivo de propriedades)
+            if (args.length < 1) {
+                System.out.println(LocalDateTime.now() + " : Erro: Arquivo de propriedades não especificado");
+                System.out.println("Uso: java meta1sd.Downloader <arquivo_propriedades>");
+                return;
+            }
+
+            Downloader downloader = new Downloader();
             Properties prop = new Properties();
-            InputStream input = new FileInputStream(args[1]);
-            System.out.println(LocalDateTime.now() + " : Iniciando Downloader " + downloader.getDownloader());
-            System.out.println(LocalDateTime.now() + " : Carregando arquivo de propriedades");
+            InputStream input = new FileInputStream(args[0]);
+
+            System.out.println(downloader.getTimestamp() + " : Iniciando Downloader");
+            System.out.println(downloader.getTimestamp() + " : Carregando arquivo de propriedades");
             prop.load(input);
-            System.out.println(LocalDateTime.now() + " : Arquivo de propriedades carregado");
+            System.out.println(downloader.getTimestamp() + " : Arquivo de propriedades carregado");
 
             registryN = prop.getProperty("registryN");
             registryNibs = prop.getProperty("registryNibs");
 
-            System.out.println(LocalDateTime.now() + " : registryN: " + registryN);
+            System.out.println(downloader.getTimestamp() + " : registryN: " + registryN);
+            System.out.println(downloader.getTimestamp() + " : registryNibs: " + registryNibs);
+
             maxSizeText = Integer.parseInt(prop.getProperty("maxSizeText"));
             maxSizeTitle = Integer.parseInt(prop.getProperty("maxSizeTitle"));
             maxSizeTokens = Integer.parseInt(prop.getProperty("maxSizeTokens"));
@@ -104,12 +146,14 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                 try {
                     // Se gateway é null, tenta conectar
                     if (gateway == null || gatewayibs == null) {
-                        System.out.println(LocalDateTime.now() + " : Tentando conectar ao RMI...");
+                        System.out.println(downloader.getTimestamp() + " : Tentando conectar ao RMI...");
                         gateway = (RMIGatewayDownloaderInterface) Naming.lookup(registryN);
                         gatewayibs = (RMIGatewayIBSDownloader) Naming.lookup(registryNibs);
 
-                        gatewayibs.registerDownloader(Integer.parseInt(args[0]), downloader);
-                        System.out.println(LocalDateTime.now() + " : Conexão RMI estabelecida com sucesso");
+                        // IMPORTANTE: Configurar o gateway no downloader
+                        downloader.setGateway(gatewayibs);
+
+                        System.out.println(downloader.getTimestamp() + " : Conexão RMI estabelecida com sucesso");
                     }
 
                     // Loop de processamento de URLs
@@ -117,7 +161,7 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                         SiteData siteData = new SiteData();
                         try {
                             siteData.url = gateway.popqueue();
-                            System.out.println(LocalDateTime.now() + " : Tentando pegar queue: " + siteData.url);
+                            System.out.println(downloader.getTimestamp() + " : Tentando pegar queue: " + siteData.url);
 
                             if (siteData.url == null) {
                                 Thread.sleep(1000);
@@ -126,7 +170,8 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
 
                             // Validar URL antes de tentar conectar
                             if (!siteData.url.startsWith("http://") && !siteData.url.startsWith("https://")) {
-                                System.out.println(LocalDateTime.now() + " : URL inválida ignorada: " + siteData.url);
+                                System.out.println(
+                                        downloader.getTimestamp() + " : URL inválida ignorada: " + siteData.url);
                                 continue;
                             }
 
@@ -143,10 +188,11 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                                     int lim = Math.min(maxSizeTitle, size.length);
                                     title = new String(size, 0, lim);
                                     siteData.title = title.toLowerCase().replace("\n", " ");
-                                    System.out.println(LocalDateTime.now() + " : Title: " + siteData.title);
+                                    System.out.println(downloader.getTimestamp() + " : Title: " + siteData.title);
                                 } catch (Exception e) {
                                     System.out.println(
-                                            LocalDateTime.now() + " : Erro ao processar título: " + e.getMessage());
+                                            downloader.getTimestamp() + " : Erro ao processar título: "
+                                                    + e.getMessage());
                                     siteData.title = "";
                                 }
 
@@ -157,10 +203,11 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                                     int lim = Math.min(maxSizeText, size.length);
                                     String textCit = new String(size, 0, lim);
                                     siteData.text = textCit.toLowerCase().replace("\n", " ");
-                                    System.out.println(LocalDateTime.now() + " : Text processado");
+                                    System.out.println(downloader.getTimestamp() + " : Text processado");
                                 } catch (Exception e) {
                                     System.out.println(
-                                            LocalDateTime.now() + " : Erro ao processar texto: " + e.getMessage());
+                                            downloader.getTimestamp() + " : Erro ao processar texto: "
+                                                    + e.getMessage());
                                     siteData.text = "";
                                 }
 
@@ -172,10 +219,11 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                                     int lim = Math.min(maxSizeTokens, size.length);
                                     token = new String(size, 0, lim);
                                     siteData.tokens = token.toLowerCase().replace("\n", " ");
-                                    System.out.println(LocalDateTime.now() + " : Tokens processados");
+                                    System.out.println(downloader.getTimestamp() + " : Tokens processados");
                                 } catch (Exception e) {
                                     System.out.println(
-                                            LocalDateTime.now() + " : Erro ao processar tokens: " + e.getMessage());
+                                            downloader.getTimestamp() + " : Erro ao processar tokens: "
+                                                    + e.getMessage());
                                     siteData.tokens = "";
                                 }
 
@@ -191,16 +239,17 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                                             try {
                                                 gateway.queueUrls(href);
                                             } catch (Exception e) {
-                                                System.out.println(LocalDateTime.now()
+                                                System.out.println(downloader.getTimestamp()
                                                         + " : Erro ao adicionar URL à fila: " + href);
                                             }
                                         }
                                     }
                                     siteData.links = coupleLinks.toString().replace("\n", " ");
-                                    System.out.println(LocalDateTime.now() + " : Links processados");
+                                    System.out.println(downloader.getTimestamp() + " : Links processados");
                                 } catch (Exception e) {
                                     System.out.println(
-                                            LocalDateTime.now() + " : Erro ao processar links: " + e.getMessage());
+                                            downloader.getTimestamp() + " : Erro ao processar links: "
+                                                    + e.getMessage());
                                     siteData.links = "";
                                 }
 
@@ -210,29 +259,33 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                                 }
 
                             } catch (org.jsoup.HttpStatusException e) {
-                                System.out.println(LocalDateTime.now() + " : A URL (" + siteData.url
+                                System.out.println(downloader.getTimestamp() + " : A URL (" + siteData.url
                                         + ") retornou status " + e.getStatusCode());
                             } catch (java.net.MalformedURLException e) {
-                                System.out.println(LocalDateTime.now() + " : URL mal formada: " + siteData.url);
+                                System.out.println(downloader.getTimestamp() + " : URL mal formada: " + siteData.url);
                             } catch (java.net.UnknownHostException e) {
-                                System.out.println(LocalDateTime.now() + " : Host desconhecido: " + siteData.url);
+                                System.out.println(downloader.getTimestamp() + " : Host desconhecido: " + siteData.url);
                             } catch (java.net.SocketTimeoutException e) {
-                                System.out.println(LocalDateTime.now() + " : Timeout ao acessar: " + siteData.url);
+                                System.out
+                                        .println(downloader.getTimestamp() + " : Timeout ao acessar: " + siteData.url);
                             } catch (Exception e) {
-                                System.out.println(LocalDateTime.now() + " : Erro ao processar URL " + siteData.url
-                                        + ": " + e.getMessage());
+                                System.out
+                                        .println(downloader.getTimestamp() + " : Erro ao processar URL " + siteData.url
+                                                + ": " + e.getMessage());
                             }
 
                         } catch (RemoteException e) {
                             System.out.println(
-                                    LocalDateTime.now() + " : Perdeu conexão com a gateway: " + e.getMessage());
+                                    downloader.getTimestamp() + " : Perdeu conexão com a gateway: " + e.getMessage());
                             gateway = null;
+                            gatewayibs = null;
                             break;
                         }
                     }
                 } catch (RemoteException e) {
-                    System.out.println(LocalDateTime.now() + " : Gateway não disponível: " + e.getMessage());
+                    System.out.println(downloader.getTimestamp() + " : Gateway não disponível: " + e.getMessage());
                     gateway = null;
+                    gatewayibs = null;
                     try {
                         Thread.sleep(RETRY_DELAY);
                     } catch (InterruptedException ie) {
@@ -246,5 +299,4 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
             e.printStackTrace();
         }
     }
-
 }

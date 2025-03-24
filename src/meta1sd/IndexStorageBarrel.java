@@ -10,12 +10,17 @@ import java.rmi.server.UnicastRemoteObject;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import java.io.FileReader;
@@ -31,26 +36,41 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // Identificador único da barrel
-    private int barrelId;
+    private final int barrelId;
 
-    // Referências para outras barrels no sistema
-    private Map<Integer, RMIIndexStorageBarrel> barrels = new HashMap<>();
+    // Locks para controle de concorrência
+    private final ReadWriteLock indexLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock stateLock = new ReentrantReadWriteLock();
 
-    // Estruturas para indexação e rastreamento
-    private Map<String, Set<String>> invertedIndex = new HashMap<>(); // Palavras -> URLs
-    private Map<String, Integer> urlReferences = new HashMap<>(); // URL -> contagem de referências
-    private Map<String, String> urlTexts = new HashMap<>(); // URL -> Texto associado
-    private Map<String, List<String>> incomingLinks = new HashMap<>(); // URL -> Lista de URLs que apontam para ela
+    // Referências para outras barrels no sistema - Thread-safe
+    private final Map<Integer, RMIIndexStorageBarrel> barrels = new ConcurrentHashMap<>();
 
-    // Conjunto de sites armazenados localmente
-    private Set<SiteData> siteDataSet = new HashSet<>();
+    // Estruturas para indexação e rastreamento - Thread-safe
+    private final Map<String, Set<String>> invertedIndex = new ConcurrentHashMap<>(); // Palavras -> URLs
+    private final Map<String, Integer> urlReferences = new ConcurrentHashMap<>(); // URL -> contagem de referências
+    private final Map<String, String> urlTexts = new ConcurrentHashMap<>(); // URL -> Texto associado
+    private final Map<String, List<String>> incomingLinks = new ConcurrentHashMap<>(); // URL -> Lista de URLs que
+                                                                                       // apontam para ela
+
+    // Conjunto de sites armazenados localmente - Sincronizado externamente
+    private final Set<SiteData> siteDataSet = Collections.synchronizedSet(new HashSet<>());
 
     /**
      * Retorna o índice invertido (palavra -> conjunto de URLs)
      */
     @Override
     public Map<String, Set<String>> getInvertedIndex() throws RemoteException {
-        return new HashMap<>(invertedIndex);
+        indexLock.readLock().lock();
+        try {
+            // Retorna uma cópia para evitar modificações externas
+            Map<String, Set<String>> result = new ConcurrentHashMap<>();
+            for (Map.Entry<String, Set<String>> entry : invertedIndex.entrySet()) {
+                result.put(entry.getKey(), new HashSet<>(entry.getValue()));
+            }
+            return result;
+        } finally {
+            indexLock.readLock().unlock();
+        }
     }
 
     /**
@@ -59,7 +79,17 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      */
     @Override
     public Map<String, List<String>> getIncomingLinksMap() throws RemoteException {
-        return new HashMap<>(incomingLinks);
+        indexLock.readLock().lock();
+        try {
+            // Retorna uma cópia para evitar modificações externas
+            Map<String, List<String>> result = new ConcurrentHashMap<>();
+            for (Map.Entry<String, List<String>> entry : incomingLinks.entrySet()) {
+                result.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            }
+            return result;
+        } finally {
+            indexLock.readLock().unlock();
+        }
     }
 
     /**
@@ -67,7 +97,12 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      */
     @Override
     public Map<String, Integer> getUrlReferences() throws RemoteException {
-        return new HashMap<>(urlReferences);
+        indexLock.readLock().lock();
+        try {
+            return new ConcurrentHashMap<>(urlReferences);
+        } finally {
+            indexLock.readLock().unlock();
+        }
     }
 
     /**
@@ -75,7 +110,12 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      */
     @Override
     public Map<String, String> getUrlTexts() throws RemoteException {
-        return new HashMap<>(urlTexts);
+        indexLock.readLock().lock();
+        try {
+            return new ConcurrentHashMap<>(urlTexts);
+        } finally {
+            indexLock.readLock().unlock();
+        }
     }
 
     /**
@@ -115,7 +155,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * 
      * @param gateway Interface do gateway para obter as barrels registradas
      */
-    public void syncWithExistingBarrels(RMIGatewayIBSDownloader gateway) throws RemoteException {
+    public synchronized void syncWithExistingBarrels(RMIGatewayIBSDownloader gateway) throws RemoteException {
         try {
             Map<Integer, RMIIndexStorageBarrel> existingBarrels = gateway.getBarrels();
 
@@ -172,76 +212,86 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * Esta versão transfere os mapas inteiros de uma vez em vez de processar item
      * por item
      */
-    public void syncFromExistingBarrel(RMIIndexStorageBarrel existingBarrel) throws RemoteException {
+    public synchronized void syncFromExistingBarrel(RMIIndexStorageBarrel existingBarrel) throws RemoteException {
         System.out.println(getTimestamp() + " : 📥 Iniciando sincronização de dados completos...");
 
         try {
             long startTime = System.currentTimeMillis();
             int totalItemsSynced = 0;
 
-            // 1. Sincronizar o índice invertido (palavras -> URLs)
-            System.out.println(getTimestamp() + " : 🔄 Sincronizando índice invertido...");
-            Map<String, Set<String>> existingInvertedIndex = existingBarrel.getInvertedIndex();
-            if (existingInvertedIndex != null) {
-                for (Map.Entry<String, Set<String>> entry : existingInvertedIndex.entrySet()) {
-                    String word = entry.getKey();
-                    Set<String> urls = entry.getValue();
+            // Usar write lock para atualização dos índices
+            indexLock.writeLock().lock();
+            try {
+                // 1. Sincronizar o índice invertido (palavras -> URLs)
+                System.out.println(getTimestamp() + " : 🔄 Sincronizando índice invertido...");
+                Map<String, Set<String>> existingInvertedIndex = existingBarrel.getInvertedIndex();
+                if (existingInvertedIndex != null) {
+                    for (Map.Entry<String, Set<String>> entry : existingInvertedIndex.entrySet()) {
+                        String word = entry.getKey();
+                        Set<String> urls = entry.getValue();
 
-                    // Criar ou unir conjuntos de URLs para cada palavra
-                    invertedIndex.computeIfAbsent(word, k -> new HashSet<>()).addAll(urls);
+                        // Criar ou unir conjuntos de URLs para cada palavra
+                        Set<String> currentUrls = invertedIndex.computeIfAbsent(word,
+                                k -> ConcurrentHashMap.newKeySet());
+                        currentUrls.addAll(urls);
+                    }
+                    totalItemsSynced += existingInvertedIndex.size();
+                    System.out.println(getTimestamp() + " : ✅ Índice invertido sincronizado - "
+                            + existingInvertedIndex.size() + " palavras");
                 }
-                totalItemsSynced += existingInvertedIndex.size();
-                System.out.println(getTimestamp() + " : ✅ Índice invertido sincronizado - "
-                        + existingInvertedIndex.size() + " palavras");
-            }
 
-            // 2. Sincronizar referências de URLs
-            System.out.println(getTimestamp() + " : 🔄 Sincronizando referências de URLs...");
-            Map<String, Integer> existingUrlReferences = existingBarrel.getUrlReferences();
-            if (existingUrlReferences != null) {
-                existingUrlReferences.forEach(
-                        (url, count) -> urlReferences.put(url, Math.max(urlReferences.getOrDefault(url, 0), count)));
-                totalItemsSynced += existingUrlReferences.size();
-                System.out.println(getTimestamp() + " : ✅ Referências de URLs sincronizadas - "
-                        + existingUrlReferences.size() + " URLs");
-            }
+                // 2. Sincronizar referências de URLs
+                System.out.println(getTimestamp() + " : 🔄 Sincronizando referências de URLs...");
+                Map<String, Integer> existingUrlReferences = existingBarrel.getUrlReferences();
+                if (existingUrlReferences != null) {
+                    existingUrlReferences.forEach(
+                            (url, count) -> urlReferences.compute(url,
+                                    (k, v) -> (v == null) ? count : Math.max(v, count)));
+                    totalItemsSynced += existingUrlReferences.size();
+                    System.out.println(getTimestamp() + " : ✅ Referências de URLs sincronizadas - "
+                            + existingUrlReferences.size() + " URLs");
+                }
 
-            // 3. Sincronizar links de entrada
-            System.out.println(getTimestamp() + " : 🔄 Sincronizando links de entrada...");
-            Map<String, List<String>> existingIncomingLinks = existingBarrel.getIncomingLinksMap();
-            if (existingIncomingLinks != null) {
-                for (Map.Entry<String, List<String>> entry : existingIncomingLinks.entrySet()) {
-                    String url = entry.getKey();
-                    List<String> links = entry.getValue();
+                // 3. Sincronizar links de entrada
+                System.out.println(getTimestamp() + " : 🔄 Sincronizando links de entrada...");
+                Map<String, List<String>> existingIncomingLinks = existingBarrel.getIncomingLinksMap();
+                if (existingIncomingLinks != null) {
+                    for (Map.Entry<String, List<String>> entry : existingIncomingLinks.entrySet()) {
+                        String url = entry.getKey();
+                        List<String> links = entry.getValue();
 
-                    // Criar ou atualizar lista de links para cada URL
-                    List<String> currentLinks = incomingLinks.computeIfAbsent(url, k -> new ArrayList<>());
+                        // Criar ou atualizar lista de links para cada URL
+                        incomingLinks.computeIfAbsent(url, k -> Collections.synchronizedList(new ArrayList<>()))
+                                .addAll(links);
 
-                    // Adicionar apenas links não duplicados
-                    for (String link : links) {
-                        if (!currentLinks.contains(link)) {
-                            currentLinks.add(link);
+                        // Remover duplicados (eficiente mas em-lugar)
+                        List<String> currentLinks = incomingLinks.get(url);
+                        synchronized (currentLinks) {
+                            Set<String> uniqueLinks = new HashSet<>(currentLinks);
+                            currentLinks.clear();
+                            currentLinks.addAll(uniqueLinks);
                         }
                     }
+                    totalItemsSynced += existingIncomingLinks.size();
+                    System.out.println(getTimestamp() + " : ✅ Links de entrada sincronizados - "
+                            + existingIncomingLinks.size() + " URLs");
                 }
-                totalItemsSynced += existingIncomingLinks.size();
-                System.out.println(getTimestamp() + " : ✅ Links de entrada sincronizados - "
-                        + existingIncomingLinks.size() + " URLs");
-            }
 
-            // 4. Sincronizar textos associados às URLs
-            System.out.println(getTimestamp() + " : 🔄 Sincronizando textos de URLs...");
-            Map<String, String> existingUrlTexts = existingBarrel.getUrlTexts();
-            if (existingUrlTexts != null) {
-                // Apenas adiciona textos que ainda não existem localmente
-                existingUrlTexts.forEach((url, text) -> {
-                    if (!urlTexts.containsKey(url) || urlTexts.get(url).isEmpty()) {
-                        urlTexts.put(url, text);
-                    }
-                });
-                totalItemsSynced += existingUrlTexts.size();
-                System.out.println(
-                        getTimestamp() + " : ✅ Textos de URLs sincronizados - " + existingUrlTexts.size() + " URLs");
+                // 4. Sincronizar textos associados às URLs
+                System.out.println(getTimestamp() + " : 🔄 Sincronizando textos de URLs...");
+                Map<String, String> existingUrlTexts = existingBarrel.getUrlTexts();
+                if (existingUrlTexts != null) {
+                    // Apenas adiciona textos que ainda não existem localmente
+                    existingUrlTexts.forEach((url, text) -> {
+                        urlTexts.computeIfAbsent(url, k -> text);
+                    });
+                    totalItemsSynced += existingUrlTexts.size();
+                    System.out.println(
+                            getTimestamp() + " : ✅ Textos de URLs sincronizados - " + existingUrlTexts.size()
+                                    + " URLs");
+                }
+            } finally {
+                indexLock.writeLock().unlock();
             }
 
             long endTime = System.currentTimeMillis();
@@ -263,7 +313,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     /**
      * Registra uma barrel na lista local de barrels
      */
-    public void registeroneIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
+    public synchronized void registeroneIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
         if (id != this.barrelId) {
             barrels.put(id, barrel);
             System.out.println(getTimestamp() + " : 📝 Guardando a barrel " + id);
@@ -275,7 +325,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     /**
      * Registra esta barrel em todas as outras barrels do sistema
      */
-    public void registerallIBS(Map<Integer, RMIIndexStorageBarrel> barrells, int myid,
+    public synchronized void registerallIBS(Map<Integer, RMIIndexStorageBarrel> barrells, int myid,
             RMIIndexStorageBarrel mybarrel) throws RemoteException {
         System.out.println(getTimestamp() + " : 🔄 Registrando em outras barrels...");
 
@@ -287,7 +337,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         int successCount = 0;
         int failCount = 0;
 
-        for (Map.Entry<Integer, RMIIndexStorageBarrel> entry : barrells.entrySet()) {
+        // Copiar as entradas para evitar problemas de concorrência
+        List<Map.Entry<Integer, RMIIndexStorageBarrel>> entries = new ArrayList<>(barrells.entrySet());
+
+        for (Map.Entry<Integer, RMIIndexStorageBarrel> entry : entries) {
             int barid = entry.getKey();
             RMIIndexStorageBarrel barr = entry.getValue();
 
@@ -321,7 +374,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * Armazena dados de um site, atualizando os índices apropriados
      */
     @Override
-    public void storeSiteData(SiteData siteData) throws RemoteException {
+    public synchronized void storeSiteData(SiteData siteData) throws RemoteException {
         if (siteData == null || siteData.url == null || siteData.url.isEmpty()) {
             System.err.println(getTimestamp() + " : ⚠️ Tentativa de armazenar SiteData inválido");
             return;
@@ -339,7 +392,6 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         // Marca como propagado antes de enviar para outras barrels
         siteData.setPropagated(true);
         propagateUpdate(siteData);
-
     }
 
     /**
@@ -353,41 +405,59 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
         System.out.println(getTimestamp() + " : 📝 Processando atualização local para URL: " + siteData.url);
 
-        // Armazenar texto da página se disponível
-        if (siteData.text != null && !siteData.text.isEmpty()) {
-            urlTexts.put(siteData.url, siteData.text);
-            System.out.println(getTimestamp() + " : 🧾 Texto armazenado para URL: " + siteData.url);
-            System.out.println(getTimestamp() + " : 🔍 Conteúdo: " + siteData.text);
-        }
+        // Adquirir write lock para atualizar os índices
+        indexLock.writeLock().lock();
+        try {
+            // Armazenar texto da página se disponível
+            if (siteData.text != null && !siteData.text.isEmpty()) {
+                urlTexts.put(siteData.url, siteData.text);
+                System.out.println(getTimestamp() + " : 🧾 Texto armazenado para URL: " + siteData.url);
+            }
 
-        // Indexar tokens (palavras-chave)
-        if (siteData.tokens != null && !siteData.tokens.isEmpty()) {
-            indexTokens(siteData.tokens, siteData.url);
-        }
+            // Indexar tokens (palavras-chave)
+            if (siteData.tokens != null && !siteData.tokens.isEmpty()) {
+                indexTokens(siteData.tokens, siteData.url);
+            }
 
-        // Processar links e atualizar contagem de referências
-        if (siteData.links != null && !siteData.links.isEmpty()) {
-            String[] links = siteData.links.split("\\s+");
-            for (String link : links) {
-                if (link.isEmpty())
-                    continue;
+            // Processar links e atualizar contagem de referências
+            if (siteData.links != null && !siteData.links.isEmpty()) {
+                String[] links = siteData.links.split("\\s+");
+                for (String link : links) {
+                    if (link.isEmpty())
+                        continue;
 
-                // Incrementar contador de referências para o link
-                urlReferences.put(link, urlReferences.getOrDefault(link, 0) + 1);
+                    // Incrementar contador de referências para o link
+                    urlReferences.compute(link, (k, v) -> (v == null) ? 1 : v + 1);
 
-                // Adicionar URL atual à lista de páginas que apontam para o link
-                incomingLinks.computeIfAbsent(link, k -> new ArrayList<>());
-                if (!incomingLinks.get(link).contains(siteData.url)) {
-                    incomingLinks.get(link).add(siteData.url);
+                    // Adicionar URL atual à lista de páginas que apontam para o link
+                    List<String> incomingLinksList = incomingLinks.computeIfAbsent(link,
+                            k -> Collections.synchronizedList(new ArrayList<>()));
+
+                    synchronized (incomingLinksList) {
+                        if (!incomingLinksList.contains(siteData.url)) {
+                            incomingLinksList.add(siteData.url);
+                        }
+                    }
                 }
             }
+
+            // Adiciona à lista de sites para armazenar em json
+            synchronized (siteDataSet) {
+                // Remover versão anterior se existir
+                siteDataSet.removeIf(site -> site.url.equals(siteData.url));
+                siteDataSet.add(siteData);
+            }
+        } finally {
+            indexLock.writeLock().unlock();
         }
 
-        // Adiciona à lista de sites para armazenar em json
-        siteDataSet.add(siteData);
-
         // Salvar estado após a atualização
-        saveState("data/estado_barrel_" + barrelId + ".json");
+        stateLock.writeLock().lock();
+        try {
+            saveState("data/estado_barrel_" + barrelId + ".json");
+        } finally {
+            stateLock.writeLock().unlock();
+        }
         System.out.println(getTimestamp() + " : ✅ Atualização local concluída para URL: " + siteData.url);
     }
 
@@ -395,7 +465,9 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * Propaga atualização de dados para outras barrels
      */
     private void propagateUpdate(SiteData siteData) {
-        if (barrels.isEmpty()) {
+        Map<Integer, RMIIndexStorageBarrel> barrelsSnapshot = new HashMap<>(barrels);
+
+        if (barrelsSnapshot.isEmpty()) {
             System.out.println(getTimestamp() + " : ℹ️ Não há outras barrels para propagar a atualização");
             return;
         }
@@ -404,7 +476,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         int successCount = 0;
         int failCount = 0;
 
-        for (Map.Entry<Integer, RMIIndexStorageBarrel> entry : barrels.entrySet()) {
+        for (Map.Entry<Integer, RMIIndexStorageBarrel> entry : barrelsSnapshot.entrySet()) {
             int targetBarrelId = entry.getKey();
             RMIIndexStorageBarrel targetBarrel = entry.getValue();
 
@@ -453,7 +525,8 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             }
 
             // Adiciona URL ao conjunto para este token
-            invertedIndex.computeIfAbsent(token, k -> new HashSet<>()).add(url);
+            Set<String> urlSet = invertedIndex.computeIfAbsent(token, k -> ConcurrentHashMap.newKeySet());
+            urlSet.add(url);
             tokenCount++;
         }
 
@@ -473,21 +546,27 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         List<String> result = new ArrayList<>();
         Map<String, Integer> pageMatchCount = new HashMap<>();
 
-        for (String word : words) {
-            word = word.toLowerCase().trim();
-            Set<String> pages = invertedIndex.get(word);
-            if (pages != null) {
-                for (String page : pages) {
-                    pageMatchCount.put(page, pageMatchCount.getOrDefault(page, 0) + 1);
+        // Adquirir read lock para leitura dos índices
+        indexLock.readLock().lock();
+        try {
+            for (String word : words) {
+                word = word.toLowerCase().trim();
+                Set<String> pages = invertedIndex.get(word);
+                if (pages != null) {
+                    for (String page : pages) {
+                        pageMatchCount.put(page, pageMatchCount.getOrDefault(page, 0) + 1);
+                    }
                 }
             }
-        }
 
-        // Filtrar apenas as páginas que contêm todas as palavras
-        for (Map.Entry<String, Integer> entry : pageMatchCount.entrySet()) {
-            if (entry.getValue() == words.size()) {
-                result.add(entry.getKey());
+            // Filtrar apenas as páginas que contêm todas as palavras
+            for (Map.Entry<String, Integer> entry : pageMatchCount.entrySet()) {
+                if (entry.getValue() == words.size()) {
+                    result.add(entry.getKey());
+                }
             }
+        } finally {
+            indexLock.readLock().unlock();
         }
 
         System.out.println(
@@ -499,23 +578,39 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * Retorna a contagem de referências para uma URL
      */
     public int getUrlReferenceCount(String url) {
-        return urlReferences.getOrDefault(url, 0);
+        indexLock.readLock().lock();
+        try {
+            return urlReferences.getOrDefault(url, 0);
+        } finally {
+            indexLock.readLock().unlock();
+        }
     }
 
     /**
      * Retorna páginas ordenadas por número de links apontando para elas
      */
     public List<Map.Entry<String, Integer>> getPagesOrderedByIncomingLinks() throws RemoteException {
-        List<Map.Entry<String, Integer>> sortedPages = new ArrayList<>(urlReferences.entrySet());
-        sortedPages.sort((entry1, entry2) -> Integer.compare(entry2.getValue(), entry1.getValue()));
-        return sortedPages;
+        indexLock.readLock().lock();
+        try {
+            List<Map.Entry<String, Integer>> sortedPages = new ArrayList<>(urlReferences.entrySet());
+            sortedPages.sort((entry1, entry2) -> Integer.compare(entry2.getValue(), entry1.getValue()));
+            return sortedPages;
+        } finally {
+            indexLock.readLock().unlock();
+        }
     }
 
     /**
      * Retorna páginas que apontam para uma URL específica
      */
     public List<String> getPagesLinkingTo(String url) {
-        return incomingLinks.getOrDefault(url, new ArrayList<>());
+        indexLock.readLock().lock();
+        try {
+            List<String> result = incomingLinks.getOrDefault(url, new ArrayList<>());
+            return new ArrayList<>(result); // Retorna uma cópia da lista
+        } finally {
+            indexLock.readLock().unlock();
+        }
     }
 
     /**
@@ -529,8 +624,13 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 parentDir.mkdirs();
             }
 
+            Set<SiteData> siteDataCopy;
+            synchronized (siteDataSet) {
+                siteDataCopy = new HashSet<>(siteDataSet);
+            }
+
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            String json = gson.toJson(siteDataSet);
+            String json = gson.toJson(siteDataCopy);
 
             try (FileWriter writer = new FileWriter(caminhoArquivo)) {
                 writer.write(json);
@@ -558,24 +658,45 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             System.out.println(getTimestamp() + " : 📂 Carregando estado do arquivo: " + caminhoArquivo);
 
             Gson gson = new Gson();
-            siteDataSet = gson.fromJson(reader, new TypeToken<Set<SiteData>>() {
+            Set<SiteData> loadedSiteData = gson.fromJson(reader, new TypeToken<Set<SiteData>>() {
             }.getType());
 
-            if (siteDataSet == null) {
-                siteDataSet = new HashSet<>();
+            if (loadedSiteData == null) {
+                loadedSiteData = new HashSet<>();
             }
 
-            // Reindexa dados localmente
-            for (SiteData siteData : siteDataSet) {
-                processLocalUpdate(siteData);
+            // Adquirir write lock para atualização dos índices
+            indexLock.writeLock().lock();
+            try {
+                // Limpar índices existentes
+                invertedIndex.clear();
+                urlReferences.clear();
+                urlTexts.clear();
+                incomingLinks.clear();
+
+                synchronized (siteDataSet) {
+                    siteDataSet.clear();
+                    siteDataSet.addAll(loadedSiteData);
+                }
+
+                // Reindexa dados localmente
+                for (SiteData siteData : loadedSiteData) {
+                    // Processar sem propagar
+                    siteData.setPropagated(true);
+                    processLocalUpdate(siteData);
+                }
+            } finally {
+                indexLock.writeLock().unlock();
             }
 
-            System.out.println(getTimestamp() + " : 📊 Estado carregado - Entradas: " + siteDataSet.size());
+            System.out.println(getTimestamp() + " : 📊 Estado carregado - Entradas: " + loadedSiteData.size());
 
         } catch (Exception e) {
             System.err.println(getTimestamp() + " : ❌ Erro ao carregar JSON: " + e.getMessage());
             e.printStackTrace();
-            siteDataSet = new HashSet<>();
+            synchronized (siteDataSet) {
+                siteDataSet.clear();
+            }
         }
     }
 
@@ -583,13 +704,17 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * Retorna as URLs que apontam para uma URL específica
      */
     public List<String> getIncomingLinksForUrl(String url) throws RemoteException {
-        if (url == null || url.isEmpty()) {
-            return new ArrayList<>();
+        indexLock.readLock().lock();
+        try {
+            if (url == null || url.isEmpty()) {
+                return new ArrayList<>();
+            }
+            List<String> referenciadores = incomingLinks.getOrDefault(url, new ArrayList<>());
+            return new ArrayList<>(referenciadores); // Retorna uma cópia da lista
+        } finally {
+            indexLock.readLock().unlock();
         }
-        List<String> referenciadores = incomingLinks.getOrDefault(url, new ArrayList<>());
-        return new ArrayList<>(referenciadores); // Retorna uma cópia da lista para evitar modificações externas
     }
-
     /**
      * Método principal para iniciar a barrel
      */
