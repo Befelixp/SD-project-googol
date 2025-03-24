@@ -62,21 +62,43 @@ public class RMIClient {
                 System.out.println(CYAN + "           SEARCH TERMS" + RESET);
                 printSeparator();
                 System.out.print(YELLOW + "Enter search terms (separated by spaces): " + RESET);
-                String terms = sc.nextLine();
+                String terms = sc.nextLine().trim();
+
+                if (terms.isEmpty()) {
+                    System.out.println(RED + "\n⚠️ Please enter at least one search term!" + RESET);
+                    break;
+                }
 
                 try {
                     System.out.println(PURPLE + "\nSearching..." + RESET);
-                    List<String> results = gateway.returnPagesbyWords(terms);
 
-                    if (results.isEmpty()) {
-                        System.out.println(RED + "\n❌ No results found for your search." + RESET);
-                    } else {
-                        int totalResults = results.size();
-                        int pageSize = 10;
-                        int totalPages = (int) Math.ceil((double) totalResults / pageSize);
-                        int currentPage = 1;
+                    // Usar diretamente a string de termos
+                    List<String> results = new ArrayList<>();
 
-                        while (true) {
+                    try {
+                        results = gateway.returnPagesbyWords(terms); // Passar a string diretamente
+                    } catch (Exception e) {
+                        // Log do erro internamente (pode ser salvo em um arquivo de log)
+                        System.err.println("Search error: " + e.getMessage());
+                        results = new ArrayList<>(); // Garantir que results não seja null
+                    }
+
+                    if (results == null || results.isEmpty()) {
+                        System.out.println(YELLOW + "\nℹ️ No results found for your search." + RESET);
+                        System.out.println(YELLOW + "Tips:" + RESET);
+                        System.out.println("• Check if all words are spelled correctly");
+                        System.out.println("• Try using fewer or different keywords");
+                        System.out.println("• Try more general terms");
+                        break;
+                    }
+
+                    int totalResults = results.size();
+                    int pageSize = 10;
+                    int totalPages = (int) Math.ceil((double) totalResults / pageSize);
+                    int currentPage = 1;
+
+                    while (true) {
+                        try {
                             clearScreen();
                             printSeparator();
                             System.out.println(CYAN + "           SEARCH RESULTS" + RESET);
@@ -93,6 +115,109 @@ public class RMIClient {
                             // Mostrar resultados da página atual
                             for (int i = startIndex; i < endIndex; i++) {
                                 System.out.printf(GREEN + "[%2d]" + RESET + " %s\n", (i + 1), results.get(i));
+                            }
+
+                            printSeparator();
+                            System.out.println(YELLOW + "Navigation:" + RESET);
+                            System.out.println(GREEN + "[N]" + RESET + "ext page    " +
+                                    GREEN + "[P]" + RESET + "revious page    " +
+                                    GREEN + "[G]" + RESET + "o to page    " +
+                                    RED + "[Q]" + RESET + "uit");
+                            System.out.print("\nEnter your choice: ");
+
+                            String choice = sc.nextLine().trim().toUpperCase();
+
+                            switch (choice) {
+                                case "N":
+                                    if (currentPage < totalPages) {
+                                        currentPage++;
+                                    } else {
+                                        System.out.println(YELLOW + "\nℹ️ Already on the last page!" + RESET);
+                                        Thread.sleep(1000);
+                                    }
+                                    break;
+
+                                case "P":
+                                    if (currentPage > 1) {
+                                        currentPage--;
+                                    } else {
+                                        System.out.println(YELLOW + "\nℹ️ Already on the first page!" + RESET);
+                                        Thread.sleep(1000);
+                                    }
+                                    break;
+
+                                case "G":
+                                    System.out.print("\nEnter page number (1-" + totalPages + "): ");
+                                    try {
+                                        int pageNum = Integer.parseInt(sc.nextLine());
+                                        if (pageNum >= 1 && pageNum <= totalPages) {
+                                            currentPage = pageNum;
+                                        } else {
+                                            System.out.println(YELLOW + "\nℹ️ Please enter a number between 1 and "
+                                                    + totalPages + RESET);
+                                            Thread.sleep(1000);
+                                        }
+                                    } catch (NumberFormatException e) {
+                                        System.out.println(YELLOW + "\nℹ️ Please enter a valid number!" + RESET);
+                                        Thread.sleep(1000);
+                                    }
+                                    break;
+
+                                case "Q":
+                                    return;
+
+                                default:
+                                    System.out.println(YELLOW + "\nℹ️ Invalid option!" + RESET);
+                                    Thread.sleep(1000);
+                            }
+                        } catch (Exception e) {
+                            System.out.println(
+                                    YELLOW + "\nℹ️ An error occurred while displaying results. Returning to main menu."
+                                            + RESET);
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println(YELLOW
+                            + "\nℹ️ Unable to complete the search at this time. Please try again later." + RESET);
+                }
+                break;
+
+            case 3:
+                System.out.println(CYAN + "           LINKED PAGES" + RESET);
+                printSeparator();
+                System.out.print(YELLOW + "Enter the URL to find linked pages: " + RESET);
+                String pageUrl = sc.nextLine();
+                System.out.println(PURPLE + "\nFetching linked pages..." + RESET);
+
+                try {
+                    List<String> linkedUrls = gateway.returnLinkedUrls(pageUrl);
+
+                    if (linkedUrls == null || linkedUrls.isEmpty()) {
+                        System.out.println(RED + "\n❌ No linked pages found for this URL." + RESET);
+                    } else {
+                        int totalResults = linkedUrls.size();
+                        int pageSize = 10;
+                        int totalPages = (int) Math.ceil((double) totalResults / pageSize);
+                        int currentPage = 1;
+
+                        while (true) {
+                            clearScreen();
+                            printSeparator();
+                            System.out.println(CYAN + "           LINKED PAGES RESULTS" + RESET);
+                            printSeparator();
+                            System.out.println(YELLOW + "Source URL: " + RESET + pageUrl);
+                            System.out.println(YELLOW + "Total linked pages: " + RESET + totalResults);
+                            System.out.printf(YELLOW + "Page " + RESET + "%d of %d\n", currentPage, totalPages);
+                            printSeparator();
+
+                            // Calcular índices para a página atual
+                            int startIndex = (currentPage - 1) * pageSize;
+                            int endIndex = Math.min(startIndex + pageSize, totalResults);
+
+                            // Mostrar resultados da página atual
+                            for (int i = startIndex; i < endIndex; i++) {
+                                System.out.printf(GREEN + "[%2d]" + RESET + " %s\n", (i + 1), linkedUrls.get(i));
                             }
 
                             printSeparator();
@@ -150,19 +275,8 @@ public class RMIClient {
                         }
                     }
                 } catch (RemoteException e) {
-                    System.out.println(RED + "\n❌ Error while searching: " + e.getMessage() + RESET);
-                } catch (InterruptedException e) {
-                    System.out.println(RED + "\n❌ Operation interrupted: " + e.getMessage() + RESET);
+                    System.out.println(RED + "\n❌ Error while fetching linked pages: " + e.getMessage() + RESET);
                 }
-                break;
-
-            case 3:
-                System.out.println(CYAN + "           LINKED PAGES" + RESET);
-                printSeparator();
-                System.out.print(YELLOW + "Enter the URL to find linked pages: " + RESET);
-                String pageUrl = sc.nextLine();
-                System.out.println(PURPLE + "\nFetching linked pages..." + RESET);
-                // gateway.getLinkedPages(pageUrl);
                 break;
 
             case 4:

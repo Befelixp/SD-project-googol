@@ -6,6 +6,8 @@ import java.io.InputStream;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -44,15 +46,34 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
         return downloaderId;
     }
 
-    private void sendToBarrels(SiteData siteData) {
-        barrels.forEach((id, barrel) -> {
+    private boolean sendToBarrels(SiteData siteData) {
+        for (Map.Entry<Integer, RMIIndexStorageBarrel> entry : barrels.entrySet()) {
+            int id = entry.getKey();
+            RMIIndexStorageBarrel barrel = entry.getValue();
+
             try {
                 barrel.storeSiteData(siteData);
-                System.out.println("SiteData enviado para Barrel " + id);
+                System.out.printf(
+                        "[%s] ✅ Sucesso: SiteData enviado para Barrel %d - URL: %s%n",
+                        LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                        id,
+                        siteData.url);
+                return true; // Retorna true após enviar com sucesso para uma barrel
             } catch (RemoteException e) {
-                System.err.println("Erro ao enviar dados para Barrel " + id + ": " + e.getMessage());
+                System.err.printf(
+                        "[%s] ❌ Erro: Falha ao enviar SiteData para Barrel %d - URL: %s - Erro: %s%n",
+                        LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                        id,
+                        siteData.url,
+                        e.getMessage());
             }
-        });
+        }
+
+        System.err.printf(
+                "[%s] ❌ Falha: Não foi possível enviar SiteData para nenhuma barrel - URL: %s%n",
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                siteData.url);
+        return false; // Retorna false se não conseguiu enviar para nenhuma barrel
     }
 
     public static void main(String[] args) {
@@ -63,15 +84,15 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
             Downloader downloader = new Downloader(Integer.parseInt(args[0]));
             Properties prop = new Properties();
             InputStream input = new FileInputStream(args[1]);
-            System.out.println("Iniciando Downloader " + downloader.getDownloader());
-            System.out.println("Carregando arquivo de propriedades");
+            System.out.println(LocalDateTime.now() + " : Iniciando Downloader " + downloader.getDownloader());
+            System.out.println(LocalDateTime.now() + " : Carregando arquivo de propriedades");
             prop.load(input);
-            System.out.println("Arquivo de propriedades carregado");
+            System.out.println(LocalDateTime.now() + " : Arquivo de propriedades carregado");
 
             registryN = prop.getProperty("registryN");
             registryNibs = prop.getProperty("registryNibs");
 
-            System.out.println("registryN: " + registryN);
+            System.out.println(LocalDateTime.now() + " : registryN: " + registryN);
             maxSizeText = Integer.parseInt(prop.getProperty("maxSizeText"));
             maxSizeTitle = Integer.parseInt(prop.getProperty("maxSizeTitle"));
             maxSizeTokens = Integer.parseInt(prop.getProperty("maxSizeTokens"));
@@ -83,12 +104,12 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                 try {
                     // Se gateway é null, tenta conectar
                     if (gateway == null || gatewayibs == null) {
-                        System.out.println("Tentando conectar ao RMI...");
+                        System.out.println(LocalDateTime.now() + " : Tentando conectar ao RMI...");
                         gateway = (RMIGatewayDownloaderInterface) Naming.lookup(registryN);
                         gatewayibs = (RMIGatewayIBSDownloader) Naming.lookup(registryNibs);
 
                         gatewayibs.registerDownloader(Integer.parseInt(args[0]), downloader);
-                        System.out.println("Conexão RMI estabelecida com sucesso");
+                        System.out.println(LocalDateTime.now() + " : Conexão RMI estabelecida com sucesso");
                     }
 
                     // Loop de processamento de URLs
@@ -96,66 +117,122 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                         SiteData siteData = new SiteData();
                         try {
                             siteData.url = gateway.popqueue();
-                            System.out.println("Tentando pegar queue: " + siteData.url);
+                            System.out.println(LocalDateTime.now() + " : Tentando pegar queue: " + siteData.url);
 
                             if (siteData.url == null) {
-                                // Se não há URLs na fila, espera um pouco
                                 Thread.sleep(1000);
                                 continue;
                             }
 
-                            Document doc = Jsoup.connect(siteData.url).get();
-
-                            // Title
-                            String title = doc.title();
-                            byte[] size = title.getBytes();
-                            int lim = Math.min(maxSizeTitle, size.length);
-                            title = new String(size, 0, lim);
-                            siteData.title = title.toLowerCase().replace("\n", " ");
-                            System.out.println("Title: " + siteData.title);
-
-                            // Text
-                            Elements paragraphs = doc.select("p");
-                            size = paragraphs.text().getBytes();
-                            lim = Math.min(maxSizeText, size.length);
-                            String textCit = new String(size, 0, lim);
-                            siteData.text = textCit.toLowerCase().replace("\n", " ");
-                            System.out.println("Text: " + siteData.text);
-
-                            // Tokens
-                            doc.select("button, .slide").remove();
-                            String token = doc.text();
-                            size = token.getBytes();
-                            lim = Math.min(maxSizeTokens, size.length);
-                            token = new String(size, 0, lim);
-                            siteData.tokens = token.toLowerCase().replace("\n", " ");
-                            System.out.println("Tokens: " + siteData.tokens);
-
-                            // Links
-                            Elements links = doc.select("a[href]");
-                            StringBuilder coupleLinks = new StringBuilder();
-                            for (Element link : links) {
-                                String href = link.attr("abs:href");
-                                coupleLinks.append(href).append(" ");
-                                gateway.queueUrls(href);
+                            // Validar URL antes de tentar conectar
+                            if (!siteData.url.startsWith("http://") && !siteData.url.startsWith("https://")) {
+                                System.out.println(LocalDateTime.now() + " : URL inválida ignorada: " + siteData.url);
+                                continue;
                             }
-                            siteData.links = coupleLinks.toString().replace("\n", " ");
-                            System.out.println("Links: " + siteData.links);
 
-                            downloader.sendToBarrels(siteData);
+                            try {
+                                Document doc = Jsoup.connect(siteData.url)
+                                        .timeout(10000) // Timeout de 10 segundos
+                                        .userAgent("Mozilla/5.0") // User agent para evitar bloqueios
+                                        .get();
 
-                        } catch (HttpStatusException e) {
-                            System.out.println("A url (" + siteData.url + ") não permite indexação!");
-                            continue;
+                                // Title
+                                try {
+                                    String title = doc.title();
+                                    byte[] size = title.getBytes();
+                                    int lim = Math.min(maxSizeTitle, size.length);
+                                    title = new String(size, 0, lim);
+                                    siteData.title = title.toLowerCase().replace("\n", " ");
+                                    System.out.println(LocalDateTime.now() + " : Title: " + siteData.title);
+                                } catch (Exception e) {
+                                    System.out.println(
+                                            LocalDateTime.now() + " : Erro ao processar título: " + e.getMessage());
+                                    siteData.title = "";
+                                }
+
+                                // Text
+                                try {
+                                    Elements paragraphs = doc.select("p");
+                                    byte[] size = paragraphs.text().getBytes();
+                                    int lim = Math.min(maxSizeText, size.length);
+                                    String textCit = new String(size, 0, lim);
+                                    siteData.text = textCit.toLowerCase().replace("\n", " ");
+                                    System.out.println(LocalDateTime.now() + " : Text processado");
+                                } catch (Exception e) {
+                                    System.out.println(
+                                            LocalDateTime.now() + " : Erro ao processar texto: " + e.getMessage());
+                                    siteData.text = "";
+                                }
+
+                                // Tokens
+                                try {
+                                    doc.select("button, .slide").remove();
+                                    String token = doc.text();
+                                    byte[] size = token.getBytes();
+                                    int lim = Math.min(maxSizeTokens, size.length);
+                                    token = new String(size, 0, lim);
+                                    siteData.tokens = token.toLowerCase().replace("\n", " ");
+                                    System.out.println(LocalDateTime.now() + " : Tokens processados");
+                                } catch (Exception e) {
+                                    System.out.println(
+                                            LocalDateTime.now() + " : Erro ao processar tokens: " + e.getMessage());
+                                    siteData.tokens = "";
+                                }
+
+                                // Links
+                                try {
+                                    Elements links = doc.select("a[href]");
+                                    StringBuilder coupleLinks = new StringBuilder();
+                                    for (Element link : links) {
+                                        String href = link.attr("abs:href");
+                                        if (href != null && !href.isEmpty() &&
+                                                (href.startsWith("http://") || href.startsWith("https://"))) {
+                                            coupleLinks.append(href).append(" ");
+                                            try {
+                                                gateway.queueUrls(href);
+                                            } catch (Exception e) {
+                                                System.out.println(LocalDateTime.now()
+                                                        + " : Erro ao adicionar URL à fila: " + href);
+                                            }
+                                        }
+                                    }
+                                    siteData.links = coupleLinks.toString().replace("\n", " ");
+                                    System.out.println(LocalDateTime.now() + " : Links processados");
+                                } catch (Exception e) {
+                                    System.out.println(
+                                            LocalDateTime.now() + " : Erro ao processar links: " + e.getMessage());
+                                    siteData.links = "";
+                                }
+
+                                // Tenta enviar para as barrels
+                                if (!siteData.isEmpty()) {
+                                    downloader.sendToBarrels(siteData);
+                                }
+
+                            } catch (org.jsoup.HttpStatusException e) {
+                                System.out.println(LocalDateTime.now() + " : A URL (" + siteData.url
+                                        + ") retornou status " + e.getStatusCode());
+                            } catch (java.net.MalformedURLException e) {
+                                System.out.println(LocalDateTime.now() + " : URL mal formada: " + siteData.url);
+                            } catch (java.net.UnknownHostException e) {
+                                System.out.println(LocalDateTime.now() + " : Host desconhecido: " + siteData.url);
+                            } catch (java.net.SocketTimeoutException e) {
+                                System.out.println(LocalDateTime.now() + " : Timeout ao acessar: " + siteData.url);
+                            } catch (Exception e) {
+                                System.out.println(LocalDateTime.now() + " : Erro ao processar URL " + siteData.url
+                                        + ": " + e.getMessage());
+                            }
+
                         } catch (RemoteException e) {
-                            System.out.println("Perdeu conexão com a gateway: " + e.getMessage());
-                            gateway = null; // Reset da conexão
-                            break; // Sai do loop interno para tentar reconectar
+                            System.out.println(
+                                    LocalDateTime.now() + " : Perdeu conexão com a gateway: " + e.getMessage());
+                            gateway = null;
+                            break;
                         }
                     }
                 } catch (RemoteException e) {
-                    System.out.println("Gateway não disponível: " + e.getMessage());
-                    gateway = null; // Garante que gateway está null
+                    System.out.println(LocalDateTime.now() + " : Gateway não disponível: " + e.getMessage());
+                    gateway = null;
                     try {
                         Thread.sleep(RETRY_DELAY);
                     } catch (InterruptedException ie) {
@@ -165,8 +242,9 @@ public class Downloader extends UnicastRemoteObject implements RMIDownloaderIBSG
                 }
             }
         } catch (Exception e) {
-            System.out.println("Erro ao carregar arquivo de propriedades: " + e.getMessage());
+            System.out.println(LocalDateTime.now() + " : Erro ao carregar arquivo de propriedades: " + e.getMessage());
             e.printStackTrace();
         }
     }
+
 }

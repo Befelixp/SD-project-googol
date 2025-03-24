@@ -10,4 +10,6 @@ public interface RMIGatewayClientInterface extends Remote {
 
     public List<String> returnPagesbyWords(String words) throws RemoteException;
 
+    public List<String> returnLinkedUrls(String url) throws RemoteException;
+    
 }
