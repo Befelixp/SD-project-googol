@@ -42,6 +42,9 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     private Map<String, String> urlTexts = new HashMap<>(); // URL -> Texto associado
     private Map<String, List<String>> incomingLinks = new HashMap<>(); // URL -> Lista de URLs que apontam para ela
 
+    // Conjunto de sites armazenados localmente
+    private Set<SiteData> siteDataSet = new HashSet<>();
+
     /**
      * Retorna o índice invertido (palavra -> conjunto de URLs)
      */
@@ -336,6 +339,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         // Marca como propagado antes de enviar para outras barrels
         siteData.setPropagated(true);
         propagateUpdate(siteData);
+
     }
 
     /**
@@ -352,6 +356,8 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         // Armazenar texto da página se disponível
         if (siteData.text != null && !siteData.text.isEmpty()) {
             urlTexts.put(siteData.url, siteData.text);
+            System.out.println(getTimestamp() + " : 🧾 Texto armazenado para URL: " + siteData.url);
+            System.out.println(getTimestamp() + " : 🔍 Conteúdo: " + siteData.text);
         }
 
         // Indexar tokens (palavras-chave)
@@ -376,6 +382,9 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 }
             }
         }
+
+        // Adiciona à lista de sites para armazenar em json
+        siteDataSet.add(siteData);
 
         // Salvar estado após a atualização
         saveState("data/estado_barrel_" + barrelId + ".json");
@@ -514,21 +523,14 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      */
     public void saveState(String caminhoArquivo) {
         try {
-            // Criar o diretório se não existir
             File file = new File(caminhoArquivo);
             File parentDir = file.getParentFile();
             if (parentDir != null && !parentDir.exists()) {
                 parentDir.mkdirs();
             }
 
-            Map<String, Object> estado = new HashMap<>();
-            estado.put("invertedIndex", invertedIndex);
-            estado.put("urlReferences", urlReferences);
-            estado.put("urlTexts", urlTexts);
-            estado.put("incomingLinks", incomingLinks);
-
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            String json = gson.toJson(estado);
+            String json = gson.toJson(siteDataSet);
 
             try (FileWriter writer = new FileWriter(caminhoArquivo)) {
                 writer.write(json);
@@ -556,52 +558,24 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             System.out.println(getTimestamp() + " : 📂 Carregando estado do arquivo: " + caminhoArquivo);
 
             Gson gson = new Gson();
-            Map<String, Object> estado = gson.fromJson(reader, new TypeToken<Map<String, Object>>() {
+            siteDataSet = gson.fromJson(reader, new TypeToken<Set<SiteData>>() {
             }.getType());
 
-            // Restaurar cada mapa
-            urlReferences = gson.fromJson(gson.toJson(estado.get("urlReferences")),
-                    new TypeToken<Map<String, Integer>>() {
-                    }.getType());
+            if (siteDataSet == null) {
+                siteDataSet = new HashSet<>();
+            }
 
-            invertedIndex = gson.fromJson(gson.toJson(estado.get("invertedIndex")),
-                    new TypeToken<Map<String, Set<String>>>() {
-                    }.getType());
+            // Reindexa dados localmente
+            for (SiteData siteData : siteDataSet) {
+                processLocalUpdate(siteData);
+            }
 
-            incomingLinks = gson.fromJson(gson.toJson(estado.get("incomingLinks")),
-                    new TypeToken<Map<String, List<String>>>() {
-                    }.getType());
-
-            urlTexts = gson.fromJson(gson.toJson(estado.get("urlTexts")),
-                    new TypeToken<Map<String, String>>() {
-                    }.getType());
-
-            // Inicializar mapas se forem null
-            if (urlReferences == null)
-                urlReferences = new HashMap<>();
-            if (invertedIndex == null)
-                invertedIndex = new HashMap<>();
-            if (incomingLinks == null)
-                incomingLinks = new HashMap<>();
-            if (urlTexts == null)
-                urlTexts = new HashMap<>();
-
-            // Estatísticas de carregamento
-            System.out.println(getTimestamp() + " : 📊 Estado carregado:");
-            System.out.println(getTimestamp() + " : 📊 - Palavras indexadas: " + invertedIndex.size());
-            System.out.println(getTimestamp() + " : 📊 - URLs com referências: " + urlReferences.size());
-            System.out.println(getTimestamp() + " : 📊 - URLs com links de entrada: " + incomingLinks.size());
-            System.out.println(getTimestamp() + " : 📊 - URLs com textos: " + urlTexts.size());
+            System.out.println(getTimestamp() + " : 📊 Estado carregado - Entradas: " + siteDataSet.size());
 
         } catch (Exception e) {
             System.err.println(getTimestamp() + " : ❌ Erro ao carregar JSON: " + e.getMessage());
             e.printStackTrace();
-
-            // Inicializar mapas em caso de erro
-            urlReferences = new HashMap<>();
-            invertedIndex = new HashMap<>();
-            incomingLinks = new HashMap<>();
-            urlTexts = new HashMap<>();
+            siteDataSet = new HashSet<>();
         }
     }
 
