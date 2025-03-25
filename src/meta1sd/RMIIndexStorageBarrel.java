@@ -69,4 +69,7 @@ public interface RMIIndexStorageBarrel extends Remote {
      * Retorna páginas ordenadas por número de links apontando para elas
      */
     public List<Map.Entry<String, Integer>> getPagesOrderedByIncomingLinks() throws RemoteException;
+
+    Set<SiteData> getSiteDataSet() throws RemoteException;
+
 }

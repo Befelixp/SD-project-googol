@@ -150,6 +150,13 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         // através do método syncWithExistingBarrels()
     }
 
+    @Override
+    public Set<SiteData> getSiteDataSet() throws RemoteException {
+        synchronized (siteDataSet) {
+            return new HashSet<>(siteDataSet);
+        }
+    }
+
     /**
      * Sincroniza com barrels existentes obtidas do gateway
      * 
@@ -201,6 +208,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 System.out.println(getTimestamp() + " : ⚠️ Não foi possível sincronizar com nenhuma barrel existente");
             }
 
+            // Salvar o estado após a sincronização
+            saveState("data/estado_barrel_" + barrelId + ".json");
+            System.out.println(getTimestamp() + " : 💾 Estado salvo após sincronização.");
+
         } catch (Exception e) {
             System.err.println(getTimestamp() + " : ❌ Erro durante a tentativa de sincronização: " + e.getMessage());
             e.printStackTrace();
@@ -218,6 +229,26 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         try {
             long startTime = System.currentTimeMillis();
             int totalItemsSynced = 0;
+
+            // 0. Primeiro sincroniza os SiteData originais para garantir que todos os
+            // campos sejam preservados
+            System.out.println(getTimestamp() + " : 🔄 Sincronizando SiteData originais...");
+            Set<SiteData> existingSiteData = existingBarrel.getSiteDataSet();
+            if (existingSiteData != null) {
+                synchronized (siteDataSet) {
+                    // Limpar dados existentes
+                    siteDataSet.clear();
+
+                    // Adicionar todos os SiteData da barrel existente
+                    for (SiteData siteData : existingSiteData) {
+                        siteData.setPropagated(true); // Marcar como já propagado
+                        siteDataSet.add(siteData);
+                        totalItemsSynced++;
+                    }
+                }
+                System.out.println(
+                        getTimestamp() + " : ✅ SiteData sincronizados - " + existingSiteData.size() + " itens");
+            }
 
             // Usar write lock para atualização dos índices
             indexLock.writeLock().lock();
@@ -292,6 +323,14 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 }
             } finally {
                 indexLock.writeLock().unlock();
+            }
+
+            // 5. Processar todos os SiteData para reconstruir os índices
+            System.out.println(getTimestamp() + " : 🔄 Reconstruindo índices a partir dos SiteData...");
+            synchronized (siteDataSet) {
+                for (SiteData siteData : siteDataSet) {
+                    processLocalUpdate(siteData);
+                }
             }
 
             long endTime = System.currentTimeMillis();
@@ -402,65 +441,80 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             System.err.println(getTimestamp() + " : ⚠️ SiteData inválido para processamento local");
             return;
         }
-
+    
         System.out.println(getTimestamp() + " : 📝 Processando atualização local para URL: " + siteData.url);
-
+    
         // Adquirir write lock para atualizar os índices
         indexLock.writeLock().lock();
         try {
+            // 1. Armazenar metadados básicos
+            System.out.println(getTimestamp() + " : 🔍 Processando metadados para: " + siteData.url);
+            
             // Armazenar texto da página se disponível
             if (siteData.text != null && !siteData.text.isEmpty()) {
                 urlTexts.put(siteData.url, siteData.text);
-                System.out.println(getTimestamp() + " : 🧾 Texto armazenado para URL: " + siteData.url);
+                System.out.println(getTimestamp() + " : 🧾 Texto armazenado (" + siteData.text.length() + " chars)");
             }
-
-            // Indexar tokens (palavras-chave)
+    
+            // 2. Processar tokens (palavras-chave)
             if (siteData.tokens != null && !siteData.tokens.isEmpty()) {
+                System.out.println(getTimestamp() + " : 🔠 Indexando tokens...");
                 indexTokens(siteData.tokens, siteData.url);
+            } else {
+                System.out.println(getTimestamp() + " : ℹ️ Nenhum token para indexar");
             }
-
-            // Processar links e atualizar contagem de referências
+    
+            // 3. Processar links
             if (siteData.links != null && !siteData.links.isEmpty()) {
+                System.out.println(getTimestamp() + " : 🔗 Processando links...");
                 String[] links = siteData.links.split("\\s+");
+                int newLinks = 0;
+                
                 for (String link : links) {
-                    if (link.isEmpty())
-                        continue;
-
-                    // Incrementar contador de referências para o link
-                    urlReferences.compute(link, (k, v) -> (v == null) ? 1 : v + 1);
-
-                    // Adicionar URL atual à lista de páginas que apontam para o link
+                    if (link.isEmpty()) continue;
+    
+                    // Atualizar contagem de referências
+                    int newCount = urlReferences.compute(link, (k, v) -> (v == null) ? 1 : v + 1);
+                    if (newCount == 1) newLinks++;
+    
+                    // Atualizar links de entrada
                     List<String> incomingLinksList = incomingLinks.computeIfAbsent(link,
                             k -> Collections.synchronizedList(new ArrayList<>()));
-
+    
                     synchronized (incomingLinksList) {
                         if (!incomingLinksList.contains(siteData.url)) {
                             incomingLinksList.add(siteData.url);
                         }
                     }
                 }
+                System.out.println(getTimestamp() + " : ➕ " + newLinks + " novos links de " + links.length + " totais");
+            } else {
+                System.out.println(getTimestamp() + " : ℹ️ Nenhum link para processar");
             }
-
-            // Adiciona à lista de sites para armazenar em json
+    
+            // 4. Atualizar conjunto principal de sites
             synchronized (siteDataSet) {
                 // Remover versão anterior se existir
-                siteDataSet.removeIf(site -> site.url.equals(siteData.url));
+                boolean existed = siteDataSet.removeIf(site -> site.url.equals(siteData.url));
                 siteDataSet.add(siteData);
+                System.out.println(getTimestamp() + " : " + (existed ? "🔄 Atualizado" : "🆕 Novo") + " SiteData adicionado");
             }
+    
         } finally {
             indexLock.writeLock().unlock();
         }
-
-        // Salvar estado após a atualização
+    
+        // 5. Salvar estado (com lock separado para evitar deadlocks)
         stateLock.writeLock().lock();
         try {
+            System.out.println(getTimestamp() + " : 💾 Salvando estado...");
             saveState("data/estado_barrel_" + barrelId + ".json");
         } finally {
             stateLock.writeLock().unlock();
         }
-        System.out.println(getTimestamp() + " : ✅ Atualização local concluída para URL: " + siteData.url);
+        
+        System.out.println(getTimestamp() + " : ✅ Atualização concluída para: " + siteData.url);
     }
-
     /**
      * Propaga atualização de dados para outras barrels
      */
@@ -715,6 +769,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             indexLock.readLock().unlock();
         }
     }
+
     /**
      * Método principal para iniciar a barrel
      */
