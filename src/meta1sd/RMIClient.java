@@ -4,6 +4,10 @@ import java.io.*;
 import java.rmi.*;
 import java.util.*;
 
+/**
+ * RMIClient - Classe responsável por interagir com o gateway RMI para indexação
+ * de URLs e busca de termos.
+ */
 public class RMIClient {
     private Scanner sc = new Scanner(System.in);
     private int id, characterLimit;
@@ -18,10 +22,16 @@ public class RMIClient {
     private static final String RED = "\u001B[31m";
     private static final String PURPLE = "\u001B[35m";
 
+    /**
+     * Imprime um separador estilizado no console.
+     */
     private void printSeparator() {
         System.out.println(PURPLE + "═══════════════════════════════════════════════════════════" + RESET);
     }
 
+    /**
+     * Imprime o menu de opções disponíveis para o usuário.
+     */
     private void printmenu() {
         clearScreen();
         printSeparator();
@@ -38,11 +48,22 @@ public class RMIClient {
         System.out.print(YELLOW + "Enter your choice: " + RESET);
     }
 
+    /**
+     * Limpa a tela do console.
+     */
     private void clearScreen() {
         System.out.print("\033[H\033[2J");
         System.out.flush();
     }
 
+    /**
+     * Executa a opção selecionada pelo usuário.
+     * 
+     * @param gateway Interface do gateway RMI.
+     * @param option  Opção selecionada pelo usuário.
+     * @throws RemoteException      Se ocorrer um erro de comunicação remota.
+     * @throws InterruptedException Se a operação for interrompida.
+     */
     public void opt(RMIGatewayClientInterface gateway, int option) throws RemoteException, InterruptedException {
         clearScreen();
         printSeparator();
@@ -168,7 +189,6 @@ public class RMIClient {
 
                                 default:
                                     System.out.println(YELLOW + "\nℹ️ Invalid option!" + RESET);
-                                    Thread.sleep(1000);
                             }
                         } catch (Exception e) {
                             System.out.println(
@@ -270,7 +290,6 @@ public class RMIClient {
 
                                 default:
                                     System.out.println(RED + "\n❌ Invalid option!" + RESET);
-                                    Thread.sleep(1500);
                             }
                         }
                     }
@@ -301,6 +320,12 @@ public class RMIClient {
         }
     }
 
+    /**
+     * Verifica se a entrada do usuário é um número inteiro.
+     * 
+     * @param sc Scanner para ler a entrada do usuário.
+     * @return O número inteiro lido.
+     */
     private static int isIntger(Scanner sc) {
         while (!sc.hasNextInt()) {
             System.out.println(RED + "❌ Please enter a valid number!" + RESET);
@@ -311,6 +336,9 @@ public class RMIClient {
         return opt;
     }
 
+    /**
+     * Inicializa o cliente e exibe o menu principal.
+     */
     private void initclient() {
         int option = 0;
 
@@ -332,6 +360,12 @@ public class RMIClient {
         }
     }
 
+    /**
+     * Método principal para executar o cliente RMI.
+     * 
+     * @param args Argumentos da linha de comando, incluindo o ID do cliente e o
+     *             arquivo de propriedades.
+     */
     public static void main(String[] args) {
         try {
             if (args.length < 2) {
@@ -393,7 +427,6 @@ public class RMIClient {
 
                 } catch (Exception e) {
                     System.out.println("Erro inesperado: " + e.getMessage());
-                    e.printStackTrace();
                     System.out.print("Deseja continuar tentando? (S/N): ");
                     String resposta = client.sc.nextLine().trim().toUpperCase();
 
@@ -408,9 +441,7 @@ public class RMIClient {
                 }
             }
 
-        } catch (
-
-        Exception e) {
+        } catch (Exception e) {
             System.out.println("Erro fatal: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);

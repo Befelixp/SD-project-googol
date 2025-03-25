@@ -13,39 +13,62 @@ import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 
+/**
+ * Classe responsável por baixar e processar dados de sites.
+ * Conecta-se a um gateway RMI para recuperar URLs, busca seu conteúdo
+ * e envia os dados processados para um barrel de armazenamento.
+ */
 public class Downloader {
-    private static final int RETRY_DELAY = 5000; // 5 segundos
+    private static final int RETRY_DELAY = 5000; // Atraso em milissegundos antes de tentar reconectar
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    private RMIGatewayIBSDownloader gatewayibs;
+    private RMIGatewayIBSDownloader gatewayibs; // Gateway RMI para armazenar dados
 
+    /**
+     * Construtor padrão da classe Downloader.
+     */
     public Downloader() {
-        // Construtor simples sem ID
+        // Construtor simples sem parâmetros
     }
 
-    // Método para configurar o gateway
+    /**
+     * Configura o gateway RMI para armazenamento de dados.
+     * 
+     * @param gateway O gateway RMI a ser configurado.
+     */
     public void setGateway(RMIGatewayIBSDownloader gateway) {
         this.gatewayibs = gateway;
         System.out.println(getTimestamp() + " : Gateway configurado com sucesso");
     }
 
+    /**
+     * Obtém o timestamp atual formatado como uma string.
+     * 
+     * @return O timestamp formatado.
+     */
     private String getTimestamp() {
         return LocalDateTime.now().format(TIME_FORMATTER);
     }
 
+    /**
+     * Envia os dados do site processados para um barrel de armazenamento.
+     * Implementa lógica de repetição em caso de falha.
+     * 
+     * @param siteData Os dados a serem enviados.
+     * @return Verdadeiro se os dados foram enviados com sucesso, falso caso
+     *         contrário.
+     */
     private boolean sendToBarrels(SiteData siteData) {
         if (gatewayibs == null) {
             System.err.println(getTimestamp() + " : ❌ Erro: Gateway não configurado. Não é possível enviar dados.");
             return false;
         }
 
-        // Número máximo de tentativas
-        final int MAX_RETRIES = 3;
-        // Tempo de espera inicial entre tentativas (500ms)
-        int waitTime = 500;
+        final int MAX_RETRIES = 3; // Número máximo de tentativas
+        int waitTime = 500; // Tempo de espera inicial em milissegundos
 
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                // Obter uma barrel aleatória do gateway
+                // Solicita um barrel aleatório do gateway
                 System.out.printf(
                         "[%s] 🔄 Tentativa %d de %d: Solicitando barrel aleatória do gateway...%n",
                         getTimestamp(),
@@ -61,11 +84,11 @@ public class Downloader {
 
                     // Aguardar antes de tentar novamente com backoff exponencial
                     Thread.sleep(waitTime);
-                    waitTime *= 2; // Dobra o tempo de espera a cada tentativa
+                    waitTime *= 2; // Dobra o tempo de espera para a próxima tentativa
                     continue;
                 }
 
-                // Tenta enviar para a barrel obtida
+                // Tenta enviar os dados do site para o barrel obtido
                 barrel.storeSiteData(siteData);
 
                 System.out.printf(
@@ -82,8 +105,8 @@ public class Downloader {
                         siteData.url,
                         e.getMessage());
 
-                // A exceção já foi tratada no gateway, que deve ter removido a barrel
-                // problemática
+                // A exceção já foi tratada no gateway, que deve ter removido o barrel
+                // problemático
                 // Apenas aguardamos um pouco para a próxima tentativa
                 try {
                     Thread.sleep(waitTime);
@@ -108,12 +131,20 @@ public class Downloader {
         return false;
     }
 
+    /**
+     * Método principal para iniciar a aplicação Downloader.
+     * Inicializa as propriedades, conecta-se ao gateway RMI
+     * e processa URLs em um loop.
+     * 
+     * @param args Argumentos da linha de comando, esperando um arquivo de
+     *             propriedades.
+     */
     public static void main(String[] args) {
         String registryN, registryNibs;
         int maxSizeText, maxSizeTitle, maxSizeTokens;
 
         try {
-            // Verificar se temos pelo menos um argumento (arquivo de propriedades)
+            // Verifica se pelo menos um argumento (arquivo de propriedades) é fornecido
             if (args.length < 1) {
                 System.out.println(LocalDateTime.now() + " : Erro: Arquivo de propriedades não especificado");
                 System.out.println("Uso: java meta1sd.Downloader <arquivo_propriedades>");
@@ -129,6 +160,7 @@ public class Downloader {
             prop.load(input);
             System.out.println(downloader.getTimestamp() + " : Arquivo de propriedades carregado");
 
+            // Carrega as propriedades do arquivo
             registryN = prop.getProperty("registryN");
             registryNibs = prop.getProperty("registryNibs");
 
@@ -142,9 +174,9 @@ public class Downloader {
             RMIGatewayDownloaderInterface gateway = null;
             RMIGatewayIBSDownloader gatewayibs = null;
 
-            while (true) { // Loop principal
+            while (true) { // Loop principal de processamento
                 try {
-                    // Se gateway é null, tenta conectar
+                    // Se o gateway é null, tenta conectar
                     if (gateway == null || gatewayibs == null) {
                         System.out.println(downloader.getTimestamp() + " : Tentando conectar ao RMI...");
                         gateway = (RMIGatewayDownloaderInterface) Naming.lookup(registryN);
@@ -160,15 +192,15 @@ public class Downloader {
                     while (true) {
                         SiteData siteData = new SiteData();
                         try {
-                            siteData.url = gateway.popqueue();
+                            siteData.url = gateway.popqueue(); // Recupera uma URL da fila
                             System.out.println(downloader.getTimestamp() + " : Tentando pegar queue: " + siteData.url);
 
                             if (siteData.url == null) {
-                                Thread.sleep(1000);
+                                Thread.sleep(1000); // Aguardar se nenhuma URL estiver disponível
                                 continue;
                             }
 
-                            // Validar URL antes de tentar conectar
+                            // Valida a URL antes de tentar conectar
                             if (!siteData.url.startsWith("http://") && !siteData.url.startsWith("https://")) {
                                 System.out.println(
                                         downloader.getTimestamp() + " : URL inválida ignorada: " + siteData.url);
@@ -176,12 +208,13 @@ public class Downloader {
                             }
 
                             try {
+                                // Conecta-se à URL e busca o documento
                                 Document doc = Jsoup.connect(siteData.url)
                                         .timeout(10000) // Timeout de 10 segundos
                                         .userAgent("Mozilla/5.0") // User agent para evitar bloqueios
                                         .get();
 
-                                // Title
+                                // Processa o título
                                 try {
                                     String title = doc.title();
                                     byte[] size = title.getBytes();
@@ -193,10 +226,10 @@ public class Downloader {
                                     System.out.println(
                                             downloader.getTimestamp() + " : Erro ao processar título: "
                                                     + e.getMessage());
-                                    siteData.title = "";
+                                    siteData.title = ""; // Define o título como vazio em caso de erro
                                 }
 
-                                // Text
+                                // Processa o conteúdo de texto
                                 try {
                                     Elements paragraphs = doc.select("p");
                                     byte[] size = paragraphs.text().getBytes();
@@ -208,12 +241,12 @@ public class Downloader {
                                     System.out.println(
                                             downloader.getTimestamp() + " : Erro ao processar texto: "
                                                     + e.getMessage());
-                                    siteData.text = "";
+                                    siteData.text = ""; // Define o texto como vazio em caso de erro
                                 }
 
-                                // Tokens
+                                // Processa tokens
                                 try {
-                                    doc.select("button, .slide").remove();
+                                    doc.select("button, .slide").remove(); // Remove elementos indesejados
                                     String token = doc.text();
                                     byte[] size = token.getBytes();
                                     int lim = Math.min(maxSizeTokens, size.length);
@@ -224,10 +257,10 @@ public class Downloader {
                                     System.out.println(
                                             downloader.getTimestamp() + " : Erro ao processar tokens: "
                                                     + e.getMessage());
-                                    siteData.tokens = "";
+                                    siteData.tokens = ""; // Define os tokens como vazios em caso de erro
                                 }
 
-                                // Links
+                                // Processa links
                                 try {
                                     Elements links = doc.select("a[href]");
                                     StringBuilder coupleLinks = new StringBuilder();
@@ -237,7 +270,7 @@ public class Downloader {
                                                 (href.startsWith("http://") || href.startsWith("https://"))) {
                                             coupleLinks.append(href).append(" ");
                                             try {
-                                                gateway.queueUrls(href);
+                                                gateway.queueUrls(href); // Adiciona a URL encontrada à fila
                                             } catch (Exception e) {
                                                 System.out.println(downloader.getTimestamp()
                                                         + " : Erro ao adicionar URL à fila: " + href);
@@ -250,10 +283,10 @@ public class Downloader {
                                     System.out.println(
                                             downloader.getTimestamp() + " : Erro ao processar links: "
                                                     + e.getMessage());
-                                    siteData.links = "";
+                                    siteData.links = ""; // Define os links como vazios em caso de erro
                                 }
 
-                                // Tenta enviar para as barrels
+                                // Tenta enviar os dados processados para os barrels
                                 if (!siteData.isEmpty()) {
                                     downloader.sendToBarrels(siteData);
                                 }
@@ -277,26 +310,26 @@ public class Downloader {
                         } catch (RemoteException e) {
                             System.out.println(
                                     downloader.getTimestamp() + " : Perdeu conexão com a gateway: " + e.getMessage());
-                            gateway = null;
-                            gatewayibs = null;
+                            gateway = null; // Reinicia o gateway em caso de perda de conexão
+                            gatewayibs = null; // Reinicia o gateway IBS
                             break;
                         }
                     }
                 } catch (RemoteException e) {
                     System.out.println(downloader.getTimestamp() + " : Gateway não disponível: " + e.getMessage());
-                    gateway = null;
-                    gatewayibs = null;
+                    gateway = null; // Reinicia o gateway em caso de falha
+                    gatewayibs = null; // Reinicia o gateway IBS
                     try {
-                        Thread.sleep(RETRY_DELAY);
+                        Thread.sleep(RETRY_DELAY); // Aguardar antes de tentar reconectar
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
-                        break;
+                        break; // Sair do loop se interrompido
                     }
                 }
             }
         } catch (Exception e) {
             System.out.println(LocalDateTime.now() + " : Erro ao carregar arquivo de propriedades: " + e.getMessage());
-            e.printStackTrace();
+            e.printStackTrace(); // Imprime a pilha de chamadas para depuração
         }
     }
 }

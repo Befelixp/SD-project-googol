@@ -56,7 +56,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     private final Set<SiteData> siteDataSet = Collections.synchronizedSet(new HashSet<>());
 
     /**
-     * Retorna o índice invertido (palavra -> conjunto de URLs)
+     * Retorna o índice invertido (palavra -> conjunto de URLs).
+     * 
+     * @return Mapa contendo o índice invertido.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     @Override
     public Map<String, Set<String>> getInvertedIndex() throws RemoteException {
@@ -75,7 +78,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Retorna o mapa de links de entrada (URL -> lista de URLs que apontam para
-     * ela)
+     * ela).
+     * 
+     * @return Mapa contendo os links de entrada.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     @Override
     public Map<String, List<String>> getIncomingLinksMap() throws RemoteException {
@@ -93,7 +99,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Retorna o mapa de referências de URL (URL -> contagem de referências)
+     * Retorna o mapa de referências de URL (URL -> contagem de referências).
+     * 
+     * @return Mapa contendo as referências de URL.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     @Override
     public Map<String, Integer> getUrlReferences() throws RemoteException {
@@ -106,7 +115,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Retorna o mapa de textos de URL (URL -> texto associado)
+     * Retorna o mapa de textos de URL (URL -> texto associado).
+     * 
+     * @return Mapa contendo os textos de URL.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     @Override
     public Map<String, String> getUrlTexts() throws RemoteException {
@@ -119,16 +131,19 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Obtém o timestamp formatado para logs
+     * Obtém o timestamp formatado para logs.
+     * 
+     * @return O timestamp formatado.
      */
     private String getTimestamp() {
         return LocalDateTime.now().format(TIME_FORMATTER);
     }
 
     /**
-     * Construtor da barrel
+     * Construtor da barrel.
      * 
-     * @param barrelId Identificador único da barrel
+     * @param barrelId Identificador único da barrel.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public IndexStorageBarrel(int barrelId) throws RemoteException {
         this.barrelId = barrelId;
@@ -150,6 +165,12 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         // através do método syncWithExistingBarrels()
     }
 
+    /**
+     * Retorna o conjunto de dados do site armazenados.
+     * 
+     * @return Conjunto de dados do site.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
+     */
     @Override
     public Set<SiteData> getSiteDataSet() throws RemoteException {
         synchronized (siteDataSet) {
@@ -158,9 +179,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Sincroniza com barrels existentes obtidas do gateway
+     * Sincroniza com barrels existentes obtidas do gateway.
      * 
-     * @param gateway Interface do gateway para obter as barrels registradas
+     * @param gateway Interface do gateway para obter as barrels registradas.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public synchronized void syncWithExistingBarrels(RMIGatewayIBSDownloader gateway) throws RemoteException {
         try {
@@ -219,9 +241,12 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Método otimizado para sincronizar dados de uma barrel existente
+     * Método otimizado para sincronizar dados de uma barrel existente.
      * Esta versão transfere os mapas inteiros de uma vez em vez de processar item
-     * por item
+     * por item.
+     * 
+     * @param existingBarrel A barrel existente para sincronização.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public synchronized void syncFromExistingBarrel(RMIIndexStorageBarrel existingBarrel) throws RemoteException {
         System.out.println(getTimestamp() + " : 📥 Iniciando sincronização de dados completos...");
@@ -350,7 +375,11 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Registra uma barrel na lista local de barrels
+     * Registra uma barrel na lista local de barrels.
+     * 
+     * @param id     Identificador da barrel a ser registrada.
+     * @param barrel A barrel a ser registrada.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public synchronized void registeroneIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
         if (id != this.barrelId) {
@@ -362,7 +391,12 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Registra esta barrel em todas as outras barrels do sistema
+     * Registra esta barrel em todas as outras barrels do sistema.
+     * 
+     * @param barrells Mapa de barrels existentes.
+     * @param myid     Identificador da barrel atual.
+     * @param mybarrel Referência para a barrel atual.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public synchronized void registerallIBS(Map<Integer, RMIIndexStorageBarrel> barrells, int myid,
             RMIIndexStorageBarrel mybarrel) throws RemoteException {
@@ -403,14 +437,20 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Método usado para verificar se a barrel está ativa
+     * Método usado para verificar se a barrel está ativa.
+     * 
+     * @param provider Nome do provedor que está verificando a atividade.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public void gatewaypong(String provider) throws RemoteException {
         System.out.println(getTimestamp() + " : 🔔 " + provider + ":Pong");
     }
 
     /**
-     * Armazena dados de um site, atualizando os índices apropriados
+     * Armazena dados de um site, atualizando os índices apropriados.
+     * 
+     * @param siteData Dados do site a serem armazenados.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     @Override
     public synchronized void storeSiteData(SiteData siteData) throws RemoteException {
@@ -434,28 +474,30 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Processa atualização local dos dados de um site
+     * Processa atualização local dos dados de um site.
+     * 
+     * @param siteData Dados do site a serem processados.
      */
     private void processLocalUpdate(SiteData siteData) {
         if (siteData == null || siteData.url == null || siteData.url.isEmpty()) {
             System.err.println(getTimestamp() + " : ⚠️ SiteData inválido para processamento local");
             return;
         }
-    
+
         System.out.println(getTimestamp() + " : 📝 Processando atualização local para URL: " + siteData.url);
-    
+
         // Adquirir write lock para atualizar os índices
         indexLock.writeLock().lock();
         try {
             // 1. Armazenar metadados básicos
             System.out.println(getTimestamp() + " : 🔍 Processando metadados para: " + siteData.url);
-            
+
             // Armazenar texto da página se disponível
             if (siteData.text != null && !siteData.text.isEmpty()) {
                 urlTexts.put(siteData.url, siteData.text);
                 System.out.println(getTimestamp() + " : 🧾 Texto armazenado (" + siteData.text.length() + " chars)");
             }
-    
+
             // 2. Processar tokens (palavras-chave)
             if (siteData.tokens != null && !siteData.tokens.isEmpty()) {
                 System.out.println(getTimestamp() + " : 🔠 Indexando tokens...");
@@ -463,24 +505,26 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             } else {
                 System.out.println(getTimestamp() + " : ℹ️ Nenhum token para indexar");
             }
-    
+
             // 3. Processar links
             if (siteData.links != null && !siteData.links.isEmpty()) {
                 System.out.println(getTimestamp() + " : 🔗 Processando links...");
                 String[] links = siteData.links.split("\\s+");
                 int newLinks = 0;
-                
+
                 for (String link : links) {
-                    if (link.isEmpty()) continue;
-    
+                    if (link.isEmpty())
+                        continue;
+
                     // Atualizar contagem de referências
                     int newCount = urlReferences.compute(link, (k, v) -> (v == null) ? 1 : v + 1);
-                    if (newCount == 1) newLinks++;
-    
+                    if (newCount == 1)
+                        newLinks++;
+
                     // Atualizar links de entrada
                     List<String> incomingLinksList = incomingLinks.computeIfAbsent(link,
                             k -> Collections.synchronizedList(new ArrayList<>()));
-    
+
                     synchronized (incomingLinksList) {
                         if (!incomingLinksList.contains(siteData.url)) {
                             incomingLinksList.add(siteData.url);
@@ -491,19 +535,20 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             } else {
                 System.out.println(getTimestamp() + " : ℹ️ Nenhum link para processar");
             }
-    
+
             // 4. Atualizar conjunto principal de sites
             synchronized (siteDataSet) {
                 // Remover versão anterior se existir
                 boolean existed = siteDataSet.removeIf(site -> site.url.equals(siteData.url));
                 siteDataSet.add(siteData);
-                System.out.println(getTimestamp() + " : " + (existed ? "🔄 Atualizado" : "🆕 Novo") + " SiteData adicionado");
+                System.out.println(
+                        getTimestamp() + " : " + (existed ? "🔄 Atualizado" : "🆕 Novo") + " SiteData adicionado");
             }
-    
+
         } finally {
             indexLock.writeLock().unlock();
         }
-    
+
         // 5. Salvar estado (com lock separado para evitar deadlocks)
         stateLock.writeLock().lock();
         try {
@@ -512,11 +557,14 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         } finally {
             stateLock.writeLock().unlock();
         }
-        
+
         System.out.println(getTimestamp() + " : ✅ Atualização concluída para: " + siteData.url);
     }
+
     /**
-     * Propaga atualização de dados para outras barrels
+     * Propaga atualização de dados para outras barrels.
+     * 
+     * @param siteData Dados do site a serem propagados.
      */
     private void propagateUpdate(SiteData siteData) {
         Map<Integer, RMIIndexStorageBarrel> barrelsSnapshot = new HashMap<>(barrels);
@@ -560,7 +608,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Indexa tokens (palavras) de uma página
+     * Indexa tokens (palavras) de uma página.
+     * 
+     * @param tokens Tokens a serem indexados.
+     * @param url    URL associada aos tokens.
      */
     private void indexTokens(String tokens, String url) {
         if (tokens == null || tokens.isEmpty() || url == null || url.isEmpty()) {
@@ -590,7 +641,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Pesquisa páginas que contêm todas as palavras especificadas
+     * Pesquisa páginas que contêm todas as palavras especificadas.
+     * 
+     * @param words Conjunto de palavras a serem pesquisadas.
+     * @return Lista de URLs que contêm todas as palavras especificadas.
      */
     public List<String> searchPagesByWords(Set<String> words) {
         if (words == null || words.isEmpty()) {
@@ -629,7 +683,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Retorna a contagem de referências para uma URL
+     * Retorna a contagem de referências para uma URL.
+     * 
+     * @param url URL para a qual a contagem de referências deve ser retornada.
+     * @return Contagem de referências para a URL especificada.
      */
     public int getUrlReferenceCount(String url) {
         indexLock.readLock().lock();
@@ -641,7 +698,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Retorna páginas ordenadas por número de links apontando para elas
+     * Retorna páginas ordenadas por número de links apontando para elas.
+     * 
+     * @return Lista de entradas de páginas ordenadas por contagem de links.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public List<Map.Entry<String, Integer>> getPagesOrderedByIncomingLinks() throws RemoteException {
         indexLock.readLock().lock();
@@ -655,7 +715,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Retorna páginas que apontam para uma URL específica
+     * Retorna páginas que apontam para uma URL específica.
+     * 
+     * @param url URL para a qual as páginas que apontam devem ser retornadas.
+     * @return Lista de URLs que apontam para a URL especificada.
      */
     public List<String> getPagesLinkingTo(String url) {
         indexLock.readLock().lock();
@@ -668,7 +731,9 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Salva o estado atual da barrel em um arquivo JSON
+     * Salva o estado atual da barrel em um arquivo JSON.
+     * 
+     * @param caminhoArquivo Caminho do arquivo onde o estado deve ser salvo.
      */
     public void saveState(String caminhoArquivo) {
         try {
@@ -699,7 +764,9 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Carrega o estado da barrel a partir de um arquivo JSON
+     * Carrega o estado da barrel a partir de um arquivo JSON.
+     * 
+     * @param caminhoArquivo Caminho do arquivo de onde o estado deve ser carregado.
      */
     public void carregarEstadoDeJSON(String caminhoArquivo) {
         File file = new File(caminhoArquivo);
@@ -755,7 +822,11 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Retorna as URLs que apontam para uma URL específica
+     * Retorna as URLs que apontam para uma URL específica.
+     * 
+     * @param url URL para a qual as URLs que apontam devem ser retornadas.
+     * @return Lista de URLs que apontam para a URL especificada.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public List<String> getIncomingLinksForUrl(String url) throws RemoteException {
         indexLock.readLock().lock();
@@ -771,7 +842,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Método principal para iniciar a barrel
+     * Método principal para iniciar a barrel.
+     * 
+     * @param args Argumentos da linha de comando, incluindo o ID da barrel e o
+     *             arquivo de propriedades.
      */
     public static void main(String[] args) {
         String registryNibs;
