@@ -116,4 +116,22 @@ public interface RMIIndexStorageBarrel extends Remote {
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public Set<SiteData> getSiteDataSet() throws RemoteException;
+
+    /**
+     * Propaga atualização de dados para outras barrels.
+     * 
+     * @param siteData Dados do site a serem propagados.
+     */
+    public void propagateUpdate(SiteData siteData) throws RemoteException;
+
+    /**
+     * Método otimizado para sincronizar dados de uma barrel existente.
+     * Esta versão transfere os mapas inteiros de uma vez em vez de processar item
+     * por item.
+     * 
+     * @param existingBarrel A barrel existente para sincronização.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
+     */
+    public void syncFromExistingBarrel(RMIIndexStorageBarrel existingBarrel) throws RemoteException;
+
 }

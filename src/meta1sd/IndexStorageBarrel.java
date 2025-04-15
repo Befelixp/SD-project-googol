@@ -566,7 +566,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * 
      * @param siteData Dados do site a serem propagados.
      */
-    private void propagateUpdate(SiteData siteData) {
+    public void propagateUpdate(SiteData siteData) throws RemoteException {
         Map<Integer, RMIIndexStorageBarrel> barrelsSnapshot = new HashMap<>(barrels);
 
         if (barrelsSnapshot.isEmpty()) {

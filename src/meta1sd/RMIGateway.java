@@ -191,9 +191,9 @@ public class RMIGateway extends UnicastRemoteObject
      */
     public void registerIBS(int id, RMIIndexStorageBarrel barrel) throws RemoteException {
         barrels.put(id, barrel);
-        System.out.println(getTimestamp() + " : 📝 Barrel" + id + " registrada!");
         barrels.get(id).gatewaypong("Gateway");
         barrels.get(id).registerallIBS(barrels, id, barrel);
+        System.out.println(getTimestamp() + " : 📝 Barrel" + id + " registrada!");
     }
 
     /**
