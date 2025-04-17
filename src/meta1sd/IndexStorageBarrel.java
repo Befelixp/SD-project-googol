@@ -518,8 +518,12 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
                     // Atualizar contagem de referências
                     int newCount = urlReferences.compute(link, (k, v) -> (v == null) ? 1 : v + 1);
-                    if (newCount == 1)
+                    System.out.println(getTimestamp() + " : 🔗 Link encontrado: " + link
+                            + " (contagem atual: " + newCount + ")");
+                    if (newCount == 1) {
                         newLinks++;
+                        System.out.println(getTimestamp() + " : 🔗 Novo link encontrado: " + link);
+                    }
 
                     // Atualizar links de entrada
                     List<String> incomingLinksList = incomingLinks.computeIfAbsent(link,
@@ -646,17 +650,22 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * @param words Conjunto de palavras a serem pesquisadas.
      * @return Lista de URLs que contêm todas as palavras especificadas.
      */
+    /**
+     * Pesquisa páginas que contêm todas as palavras especificadas, retornando-as
+     * ordenadas pelo número de links que apontam para elas.
+     * 
+     * @param words Conjunto de palavras a serem pesquisadas.
+     * @return Lista de URLs que contêm todas as palavras especificadas, ordenadas.
+     */
     public List<String> searchPagesByWords(Set<String> words) {
         if (words == null || words.isEmpty()) {
             return new ArrayList<>();
         }
 
-        List<String> result = new ArrayList<>();
         Map<String, Integer> pageMatchCount = new HashMap<>();
-
-        // Adquirir read lock para leitura dos índices
         indexLock.readLock().lock();
         try {
+            // Itera sobre as palavras e conta correspondências
             for (String word : words) {
                 word = word.toLowerCase().trim();
                 Set<String> pages = invertedIndex.get(word);
@@ -666,15 +675,24 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                     }
                 }
             }
-
-            // Filtrar apenas as páginas que contêm todas as palavras
-            for (Map.Entry<String, Integer> entry : pageMatchCount.entrySet()) {
-                if (entry.getValue() == words.size()) {
-                    result.add(entry.getKey());
-                }
-            }
         } finally {
             indexLock.readLock().unlock();
+        }
+
+        // Filtra as páginas que contêm todas as palavras e as ordena
+        List<Map.Entry<String, Integer>> sortedPages = null;
+        try {
+            sortedPages = getPagesOrderedByIncomingLinks(); // Ordenação global
+        } catch (RemoteException e) {
+            System.err.println(getTimestamp() + " : ❌ Erro ao ordenar páginas por links: " + e.getMessage());
+            return new ArrayList<>(pageMatchCount.keySet());
+        }
+
+        List<String> result = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : sortedPages) {
+            if (pageMatchCount.containsKey(entry.getKey()) && pageMatchCount.get(entry.getKey()) == words.size()) {
+                result.add(entry.getKey());
+            }
         }
 
         System.out.println(
@@ -708,6 +726,9 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         try {
             List<Map.Entry<String, Integer>> sortedPages = new ArrayList<>(urlReferences.entrySet());
             sortedPages.sort((entry1, entry2) -> Integer.compare(entry2.getValue(), entry1.getValue()));
+            for (Map.Entry<String, Integer> entry : sortedPages) {
+                System.out.println(getTimestamp() + " : 📊 Página: " + entry.getKey() + ", Links: " + entry.getValue());
+            }
             return sortedPages;
         } finally {
             indexLock.readLock().unlock();
@@ -822,10 +843,11 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Retorna as URLs que apontam para uma URL específica.
+     * Retorna as URLs que apontam para uma URL específica, ordenadas pelo número
+     * de links que apontam para elas.
      * 
      * @param url URL para a qual as URLs que apontam devem ser retornadas.
-     * @return Lista de URLs que apontam para a URL especificada.
+     * @return Lista de URLs que apontam para a URL especificada, ordenadas.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public List<String> getIncomingLinksForUrl(String url) throws RemoteException {
@@ -834,8 +856,22 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             if (url == null || url.isEmpty()) {
                 return new ArrayList<>();
             }
+
+            // Obtém os links que apontam para a URL
             List<String> referenciadores = incomingLinks.getOrDefault(url, new ArrayList<>());
-            return new ArrayList<>(referenciadores); // Retorna uma cópia da lista
+
+            // Obtém todas as páginas ordenadas por número de links
+            List<Map.Entry<String, Integer>> sortedPages = getPagesOrderedByIncomingLinks();
+
+            // Filtra os referenciadores com base na ordenação global
+            List<String> ordenados = new ArrayList<>();
+            for (Map.Entry<String, Integer> entry : sortedPages) {
+                if (referenciadores.contains(entry.getKey())) {
+                    ordenados.add(entry.getKey());
+                }
+            }
+
+            return ordenados;
         } finally {
             indexLock.readLock().unlock();
         }
