@@ -36,4 +36,13 @@ public interface RMIGatewayIBSDownloader extends Remote {
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public RMIIndexStorageBarrel getRandomBarrel() throws RemoteException;
+
+    /**
+     * Remove uma barrel do registro.
+     * 
+     * @param id O ID da barrel a ser removida.
+     * @return true se a barrel foi removida com sucesso, false caso contrário.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
+     */
+    public boolean unsubscribeIBS(int id) throws RemoteException;
 }

@@ -57,7 +57,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Retorna o índice invertido (palavra -> conjunto de URLs).
-     * 
+     *
      * @return Mapa contendo o índice invertido.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -79,7 +79,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     /**
      * Retorna o mapa de links de entrada (URL -> lista de URLs que apontam para
      * ela).
-     * 
+     *
      * @return Mapa contendo os links de entrada.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -100,7 +100,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Retorna o mapa de referências de URL (URL -> contagem de referências).
-     * 
+     *
      * @return Mapa contendo as referências de URL.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -116,7 +116,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Retorna o mapa de textos de URL (URL -> texto associado).
-     * 
+     *
      * @return Mapa contendo os textos de URL.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -132,7 +132,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Obtém o timestamp formatado para logs.
-     * 
+     *
      * @return O timestamp formatado.
      */
     private String getTimestamp() {
@@ -141,7 +141,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Construtor da barrel.
-     * 
+     *
      * @param barrelId Identificador único da barrel.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -167,7 +167,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Retorna o conjunto de dados do site armazenados.
-     * 
+     *
      * @return Conjunto de dados do site.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -180,7 +180,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Sincroniza com barrels existentes obtidas do gateway.
-     * 
+     *
      * @param gateway Interface do gateway para obter as barrels registradas.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -211,14 +211,16 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                             getTimestamp() + " : 🔍 Verificando se a barrel " + targetBarrelId + " está ativa...");
                     existingBarrel.gatewaypong("NewBarrel" + barrelId);
 
-                    // Sincronizar estado
+                    // Sincronizar estado (fazendo merge)
                     System.out.println(
-                            getTimestamp() + " : 🔄 Iniciando sincronização com barrel " + targetBarrelId + "...");
+                            getTimestamp() + " : 🔄 Iniciando sincronização (merge) com barrel " + targetBarrelId
+                                    + "...");
                     syncFromExistingBarrel(existingBarrel);
 
-                    System.out.println(getTimestamp() + " : ✅ Sincronizado com sucesso com a barrel " + targetBarrelId);
+                    System.out.println(
+                            getTimestamp() + " : ✅ Sincronizado (merge) com sucesso com a barrel " + targetBarrelId);
                     syncSuccess = true;
-                    break;
+                    break; // Sincroniza apenas com a primeira ativa
                 } catch (RemoteException e) {
                     System.out.println(getTimestamp() + " : ⚠️ Barrel " + entry.getKey()
                             + " não está respondendo, tentando próxima...");
@@ -241,142 +243,162 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
     }
 
     /**
-     * Método otimizado para sincronizar dados de uma barrel existente.
-     * Esta versão transfere os mapas inteiros de uma vez em vez de processar item
-     * por item.
-     * 
+     * Método otimizado para sincronizar dados de uma barrel existente, fazendo
+     * MERGE dos dados.
+     *
+     * @param existingBarrel A barrel existente para sincronização.
+     * @throws RemoteException Se ocorrer um erro de comunicação remota.
+     */
+    /**
+     * Método otimizado para sincronizar dados de uma barrel existente, fazendo
+     * MERGE dos dados e evitando duplicatas.
+     *
      * @param existingBarrel A barrel existente para sincronização.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     public synchronized void syncFromExistingBarrel(RMIIndexStorageBarrel existingBarrel) throws RemoteException {
-        System.out.println(getTimestamp() + " : 📥 Iniciando sincronização de dados completos...");
+        System.out.println(getTimestamp() + " : 📥 Iniciando sincronização (merge) de dados completos com Barrel "
+                + existingBarrel.hashCode() + "..."); // Usar ID seria melhor se disponível
 
         try {
             long startTime = System.currentTimeMillis();
-            int totalItemsSynced = 0;
+            int totalItemsProcessed = 0; // Renomeado para clareza
 
-            // 0. Primeiro sincroniza os SiteData originais para garantir que todos os
-            // campos sejam preservados
-            System.out.println(getTimestamp() + " : 🔄 Sincronizando SiteData originais...");
+            // 0. Obter dados da barrel existente
+            System.out.println(getTimestamp() + " : 🔄 Obtendo dados da barrel remota...");
             Set<SiteData> existingSiteData = existingBarrel.getSiteDataSet();
+            Map<String, Set<String>> existingInvertedIndex = existingBarrel.getInvertedIndex();
+            Map<String, Integer> existingUrlReferences = existingBarrel.getUrlReferences();
+            Map<String, List<String>> existingIncomingLinks = existingBarrel.getIncomingLinksMap();
+            Map<String, String> existingUrlTexts = existingBarrel.getUrlTexts();
+            System.out.println(getTimestamp() + " : ✅ Dados remotos obtidos.");
+
+            // 1. Fazer MERGE do siteDataSet (remoto sobrepõe local em caso de conflito de
+            // URL)
+            System.out.println(getTimestamp() + " : 🔄 Fazendo merge do SiteData...");
             if (existingSiteData != null) {
                 synchronized (siteDataSet) {
-                    // Limpar dados existentes
-                    siteDataSet.clear();
-
-                    // Adicionar todos os SiteData da barrel existente
-                    for (SiteData siteData : existingSiteData) {
-                        siteData.setPropagated(true); // Marcar como já propagado
-                        siteDataSet.add(siteData);
-                        totalItemsSynced++;
+                    for (SiteData remoteSiteData : existingSiteData) {
+                        remoteSiteData.setPropagated(true); // Marcar como já propagado
+                        // Remove duplicata local se existir, para usar a versão remota
+                        boolean removed = siteDataSet.removeIf(localSite -> localSite.url.equals(remoteSiteData.url));
+                        siteDataSet.add(remoteSiteData); // Adiciona a versão remota
+                        if (!removed) {
+                            totalItemsProcessed++; // Conta como novo item se não existia localmente
+                        }
                     }
                 }
                 System.out.println(
-                        getTimestamp() + " : ✅ SiteData sincronizados - " + existingSiteData.size() + " itens");
+                        getTimestamp() + " : ✅ SiteData merge concluído - " + existingSiteData.size()
+                                + " itens remotos processados. Tamanho atual: " + siteDataSet.size());
             }
 
             // Usar write lock para atualização dos índices
             indexLock.writeLock().lock();
             try {
-                // 1. Sincronizar o índice invertido (palavras -> URLs)
-                System.out.println(getTimestamp() + " : 🔄 Sincronizando índice invertido...");
-                Map<String, Set<String>> existingInvertedIndex = existingBarrel.getInvertedIndex();
+                // 2. Fazer MERGE do índice invertido (palavras -> URLs)
+                System.out.println(getTimestamp() + " : 🔄 Fazendo merge do índice invertido...");
                 if (existingInvertedIndex != null) {
                     for (Map.Entry<String, Set<String>> entry : existingInvertedIndex.entrySet()) {
                         String word = entry.getKey();
-                        Set<String> urls = entry.getValue();
+                        Set<String> remoteUrls = entry.getValue();
+                        if (remoteUrls == null || remoteUrls.isEmpty())
+                            continue;
 
-                        // Criar ou unir conjuntos de URLs para cada palavra
-                        Set<String> currentUrls = invertedIndex.computeIfAbsent(word,
-                                k -> ConcurrentHashMap.newKeySet());
-                        currentUrls.addAll(urls);
+                        // Merge: adiciona URLs remotas ao conjunto local (Set lida com duplicatas)
+                        Set<String> localUrls = invertedIndex.computeIfAbsent(word,
+                                k -> ConcurrentHashMap.newKeySet()); // Usa set thread-safe
+                        localUrls.addAll(remoteUrls);
                     }
-                    totalItemsSynced += existingInvertedIndex.size();
-                    System.out.println(getTimestamp() + " : ✅ Índice invertido sincronizado - "
-                            + existingInvertedIndex.size() + " palavras");
+                    totalItemsProcessed += existingInvertedIndex.size(); // Conta palavras processadas
+                    System.out.println(getTimestamp() + " : ✅ Índice invertido merge concluído - "
+                            + existingInvertedIndex.size() + " palavras remotas processadas.");
                 }
 
-                // 2. Sincronizar referências de URLs
-                System.out.println(getTimestamp() + " : 🔄 Sincronizando referências de URLs...");
-                Map<String, Integer> existingUrlReferences = existingBarrel.getUrlReferences();
+                // 3. Fazer MERGE das referências de URLs (usando contagem máxima)
+                System.out.println(getTimestamp() + " : 🔄 Fazendo merge das referências de URLs...");
                 if (existingUrlReferences != null) {
                     existingUrlReferences.forEach(
-                            (url, count) -> urlReferences.compute(url,
-                                    (k, v) -> (v == null) ? count : Math.max(v, count)));
-                    totalItemsSynced += existingUrlReferences.size();
-                    System.out.println(getTimestamp() + " : ✅ Referências de URLs sincronizadas - "
-                            + existingUrlReferences.size() + " URLs");
+                            (url, remoteCount) -> urlReferences.compute(url,
+                                    // Usa o maior valor entre o local e o remoto
+                                    (k, localCount) -> (localCount == null) ? remoteCount
+                                            : Math.max(localCount, remoteCount)));
+                    totalItemsProcessed += existingUrlReferences.size(); // Conta URLs processadas
+                    System.out.println(getTimestamp() + " : ✅ Referências de URLs merge concluído - "
+                            + existingUrlReferences.size() + " URLs remotas processadas.");
                 }
 
-                // 3. Sincronizar links de entrada
-                System.out.println(getTimestamp() + " : 🔄 Sincronizando links de entrada...");
-                Map<String, List<String>> existingIncomingLinks = existingBarrel.getIncomingLinksMap();
+                // 4. Fazer MERGE dos links de entrada (adicionando apenas links não existentes)
+                System.out.println(getTimestamp() + " : 🔄 Fazendo merge dos links de entrada...");
                 if (existingIncomingLinks != null) {
                     for (Map.Entry<String, List<String>> entry : existingIncomingLinks.entrySet()) {
-                        String url = entry.getKey();
-                        List<String> links = entry.getValue();
+                        String targetUrl = entry.getKey();
+                        List<String> remoteLinks = entry.getValue();
+                        if (remoteLinks == null || remoteLinks.isEmpty())
+                            continue;
 
-                        // Criar ou atualizar lista de links para cada URL
-                        incomingLinks.computeIfAbsent(url, k -> Collections.synchronizedList(new ArrayList<>()))
-                                .addAll(links);
-
-                        // Remover duplicados (eficiente mas em-lugar)
-                        List<String> currentLinks = incomingLinks.get(url);
-                        synchronized (currentLinks) {
-                            Set<String> uniqueLinks = new HashSet<>(currentLinks);
-                            currentLinks.clear();
-                            currentLinks.addAll(uniqueLinks);
+                        // Merge: adiciona links remotos que não existem localmente
+                        List<String> localLinks = incomingLinks.computeIfAbsent(targetUrl,
+                                k -> Collections.synchronizedList(new ArrayList<>())); // Usa lista thread-safe
+                        synchronized (localLinks) { // Sincroniza a lista específica para a verificação/adição
+                            for (String remoteLink : remoteLinks) {
+                                if (!localLinks.contains(remoteLink)) {
+                                    localLinks.add(remoteLink);
+                                }
+                            }
                         }
                     }
-                    totalItemsSynced += existingIncomingLinks.size();
-                    System.out.println(getTimestamp() + " : ✅ Links de entrada sincronizados - "
-                            + existingIncomingLinks.size() + " URLs");
+                    totalItemsProcessed += existingIncomingLinks.size(); // Conta URLs alvo processadas
+                    System.out.println(getTimestamp() + " : ✅ Links de entrada merge concluído - "
+                            + existingIncomingLinks.size() + " URLs alvo remotas processadas.");
                 }
 
-                // 4. Sincronizar textos associados às URLs
-                System.out.println(getTimestamp() + " : 🔄 Sincronizando textos de URLs...");
-                Map<String, String> existingUrlTexts = existingBarrel.getUrlTexts();
+                // 5. Fazer MERGE dos textos associados às URLs (mantendo texto local se
+                // existir)
+                System.out.println(getTimestamp() + " : 🔄 Fazendo merge dos textos de URLs...");
                 if (existingUrlTexts != null) {
-                    // Apenas adiciona textos que ainda não existem localmente
-                    existingUrlTexts.forEach((url, text) -> {
-                        urlTexts.computeIfAbsent(url, k -> text);
+                    // Adiciona textos remotos apenas se a URL não existe localmente
+                    existingUrlTexts.forEach((url, remoteText) -> {
+                        urlTexts.putIfAbsent(url, remoteText); // putIfAbsent faz o merge (prioriza local)
                     });
-                    totalItemsSynced += existingUrlTexts.size();
+                    totalItemsProcessed += existingUrlTexts.size(); // Conta URLs processadas
                     System.out.println(
-                            getTimestamp() + " : ✅ Textos de URLs sincronizados - " + existingUrlTexts.size()
-                                    + " URLs");
+                            getTimestamp() + " : ✅ Textos de URLs merge concluído - " + existingUrlTexts.size()
+                                    + " URLs remotas processadas.");
                 }
             } finally {
                 indexLock.writeLock().unlock();
             }
 
-            // 5. Processar todos os SiteData para reconstruir os índices
-            System.out.println(getTimestamp() + " : 🔄 Reconstruindo índices a partir dos SiteData...");
-            synchronized (siteDataSet) {
-                for (SiteData siteData : siteDataSet) {
-                    processLocalUpdate(siteData);
-                }
-            }
+            // ETAPA 6 REMOVIDA - A RECONSTRUÇÃO NÃO É MAIS NECESSÁRIA APÓS O MERGE DIRETO
 
             long endTime = System.currentTimeMillis();
             double seconds = (endTime - startTime) / 1000.0;
 
-            System.out.println(getTimestamp() + " : ✅ Sincronização concluída em " + seconds + " segundos!");
-            System.out.println(getTimestamp() + " : 📊 Total de itens sincronizados: " + totalItemsSynced);
+            System.out.println(getTimestamp() + " : ✅ Sincronização (merge) concluída em " + seconds + " segundos!");
+            System.out.println(
+                    getTimestamp() + " : 📊 Total de itens remotos processados (aproximado): " + totalItemsProcessed);
+            System.out.println(getTimestamp() + " : 📊 Estado final local - Sites: " + siteDataSet.size()
+                    + ", Palavras: " + invertedIndex.size() + ", Refs: " + urlReferences.size());
 
-            // Salvar o estado sincronizado no arquivo local
+            // Salvar o estado merged no arquivo local
             saveState("data/estado_barrel_" + barrelId + ".json");
 
+        } catch (RemoteException re) {
+            System.err.println(getTimestamp() + " : ❌ Erro RMI durante a sincronização (merge): " + re.getMessage());
+            re.printStackTrace();
+            throw re; // Re-lança a exceção RMI
         } catch (Exception e) {
-            System.err.println(getTimestamp() + " : ❌ Erro durante a sincronização: " + e.getMessage());
+            System.err.println(getTimestamp() + " : ❌ Erro geral durante a sincronização (merge): " + e.getMessage());
             e.printStackTrace();
-            throw new RemoteException("Falha na sincronização", e);
+            // Considerar lançar uma RemoteException encapsulada ou tratar de outra forma
+            throw new RemoteException("Falha na sincronização (merge) devido a erro interno", e);
         }
     }
 
     /**
      * Registra uma barrel na lista local de barrels.
-     * 
+     *
      * @param id     Identificador da barrel a ser registrada.
      * @param barrel A barrel a ser registrada.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
@@ -392,7 +414,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Registra esta barrel em todas as outras barrels do sistema.
-     * 
+     *
      * @param barrells Mapa de barrels existentes.
      * @param myid     Identificador da barrel atual.
      * @param mybarrel Referência para a barrel atual.
@@ -419,9 +441,9 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
             try {
                 if (barid != this.barrelId) {
-                    this.registeroneIBS(barid, barr);
-                    barr.registeroneIBS(myid, mybarrel);
-                    barr.gatewaypong("Barrel" + myid);
+                    this.registeroneIBS(barid, barr); // Registra a outra em mim
+                    barr.registeroneIBS(myid, mybarrel); // Registra a mim na outra
+                    barr.gatewaypong("Barrel" + myid); // Verifica se a outra está ativa
                     System.out.println(getTimestamp() + " : ✅ Registrada na barrel " + barid);
                     successCount++;
                 }
@@ -429,6 +451,8 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 System.err
                         .println(getTimestamp() + " : ❌ Falha ao registrar na barrel " + barid + ": " + e.getMessage());
                 failCount++;
+                // Considerar remover a barrel inativa daqui também
+                // barrels.remove(barid);
             }
         }
 
@@ -438,7 +462,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Método usado para verificar se a barrel está ativa.
-     * 
+     *
      * @param provider Nome do provedor que está verificando a atividade.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -448,12 +472,16 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Armazena dados de um site, atualizando os índices apropriados.
-     * 
+     * Este método NÃO é mais synchronized para evitar deadlocks em RMI.
+     *
      * @param siteData Dados do site a serem armazenados.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
     @Override
-    public synchronized void storeSiteData(SiteData siteData) throws RemoteException {
+    public void storeSiteData(SiteData siteData) throws RemoteException {
+        System.out.println(getTimestamp() + " : [Barrel " + barrelId + "] Recebendo storeSiteData para " + siteData.url
+                + " | isPropagated=" + siteData.isPropagated());
+
         if (siteData == null || siteData.url == null || siteData.url.isEmpty()) {
             System.err.println(getTimestamp() + " : ⚠️ Tentativa de armazenar SiteData inválido");
             return;
@@ -465,17 +493,22 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             return;
         }
 
-        // Processa localmente e propaga para outras barrels
+        // Processa localmente
         processLocalUpdate(siteData);
 
-        // Marca como propagado antes de enviar para outras barrels
-        siteData.setPropagated(true);
-        propagateUpdate(siteData);
+        // Cria uma CÓPIA para propagar, marcando como propagado
+        SiteData copyToPropagate = new SiteData(siteData.url, siteData.tokens, siteData.links);
+        copyToPropagate.text = siteData.text;
+        copyToPropagate.title = siteData.title;
+        copyToPropagate.setPropagated(true); // Marca a CÓPIA como propagada
+
+        // Propaga a CÓPIA para outras barrels (sem lock aqui)
+        propagateUpdate(copyToPropagate);
     }
 
     /**
      * Processa atualização local dos dados de um site.
-     * 
+     *
      * @param siteData Dados do site a serem processados.
      */
     private void processLocalUpdate(SiteData siteData) {
@@ -495,20 +528,21 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             // Armazenar texto da página se disponível
             if (siteData.text != null && !siteData.text.isEmpty()) {
                 urlTexts.put(siteData.url, siteData.text);
-                System.out.println(getTimestamp() + " : 🧾 Texto armazenado (" + siteData.text.length() + " chars)");
+                // System.out.println(getTimestamp() + " : 🧾 Texto armazenado (" +
+                // siteData.text.length() + " chars)");
             }
 
             // 2. Processar tokens (palavras-chave)
             if (siteData.tokens != null && !siteData.tokens.isEmpty()) {
-                System.out.println(getTimestamp() + " : 🔠 Indexando tokens...");
+                // System.out.println(getTimestamp() + " : 🔠 Indexando tokens...");
                 indexTokens(siteData.tokens, siteData.url);
             } else {
-                System.out.println(getTimestamp() + " : ℹ️ Nenhum token para indexar");
+                // System.out.println(getTimestamp() + " : ℹ️ Nenhum token para indexar");
             }
 
             // 3. Processar links
             if (siteData.links != null && !siteData.links.isEmpty()) {
-                System.out.println(getTimestamp() + " : 🔗 Processando links...");
+                // System.out.println(getTimestamp() + " : 🔗 Processando links...");
                 String[] links = siteData.links.split("\\s+");
                 int newLinks = 0;
 
@@ -518,11 +552,11 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
                     // Atualizar contagem de referências
                     int newCount = urlReferences.compute(link, (k, v) -> (v == null) ? 1 : v + 1);
-                    System.out.println(getTimestamp() + " : 🔗 Link encontrado: " + link
-                            + " (contagem atual: " + newCount + ")");
+                    // System.out.println(getTimestamp() + " : 🔗 Link encontrado: " + link
+                    // + " (contagem atual: " + newCount + ")");
                     if (newCount == 1) {
                         newLinks++;
-                        System.out.println(getTimestamp() + " : 🔗 Novo link encontrado: " + link);
+                        // System.out.println(getTimestamp() + " : 🔗 Novo link encontrado: " + link);
                     }
 
                     // Atualizar links de entrada
@@ -535,18 +569,20 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                         }
                     }
                 }
-                System.out.println(getTimestamp() + " : ➕ " + newLinks + " novos links de " + links.length + " totais");
+                // System.out.println(getTimestamp() + " : ➕ " + newLinks + " novos links de " +
+                // links.length + " totais");
             } else {
-                System.out.println(getTimestamp() + " : ℹ️ Nenhum link para processar");
+                // System.out.println(getTimestamp() + " : ℹ️ Nenhum link para processar");
             }
 
             // 4. Atualizar conjunto principal de sites
             synchronized (siteDataSet) {
                 // Remover versão anterior se existir
                 boolean existed = siteDataSet.removeIf(site -> site.url.equals(siteData.url));
-                siteDataSet.add(siteData);
-                System.out.println(
-                        getTimestamp() + " : " + (existed ? "🔄 Atualizado" : "🆕 Novo") + " SiteData adicionado");
+                siteDataSet.add(siteData); // Adiciona a versão atual (pode ser a mesma ou nova)
+                // System.out.println(
+                // getTimestamp() + " : " + (existed ? "🔄 Atualizado" : "🆕 Novo") + " SiteData
+                // adicionado/atualizado");
             }
 
         } finally {
@@ -554,31 +590,42 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         }
 
         // 5. Salvar estado (com lock separado para evitar deadlocks)
+        // Considerar salvar estado com menos frequência para performance
         stateLock.writeLock().lock();
         try {
-            System.out.println(getTimestamp() + " : 💾 Salvando estado...");
+            // System.out.println(getTimestamp() + " : 💾 Salvando estado...");
             saveState("data/estado_barrel_" + barrelId + ".json");
         } finally {
             stateLock.writeLock().unlock();
         }
 
-        System.out.println(getTimestamp() + " : ✅ Atualização concluída para: " + siteData.url);
+        // System.out.println(getTimestamp() + " : ✅ Atualização local concluída para: "
+        // + siteData.url);
     }
 
     /**
      * Propaga atualização de dados para outras barrels.
-     * 
-     * @param siteData Dados do site a serem propagados.
+     *
+     * @param siteData Dados do site a serem propagados (DEVE SER UMA CÓPIA MARCADA
+     *                 COMO PROPAGADA).
      */
     public void propagateUpdate(SiteData siteData) throws RemoteException {
-        Map<Integer, RMIIndexStorageBarrel> barrelsSnapshot = new HashMap<>(barrels);
+        // Garante que estamos propagando um objeto marcado
+        if (!siteData.isPropagated()) {
+            System.err.println(getTimestamp() + " : ⚠️ ERRO INTERNO: Tentando propagar SiteData não marcado!");
+            siteData.setPropagated(true); // Tenta corrigir
+        }
+
+        Map<Integer, RMIIndexStorageBarrel> barrelsSnapshot = new HashMap<>(barrels); // Copia para iterar
 
         if (barrelsSnapshot.isEmpty()) {
-            System.out.println(getTimestamp() + " : ℹ️ Não há outras barrels para propagar a atualização");
+            // System.out.println(getTimestamp() + " : ℹ️ Não há outras barrels para
+            // propagar a atualização");
             return;
         }
 
-        System.out.println(getTimestamp() + " : 🔄 Propagando atualização para outras barrels...");
+        System.out.println(
+                getTimestamp() + " : 📤 Propagando atualização para " + barrelsSnapshot.size() + " outras barrels...");
         int successCount = 0;
         int failCount = 0;
 
@@ -587,7 +634,8 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             RMIIndexStorageBarrel targetBarrel = entry.getValue();
 
             try {
-                targetBarrel.storeSiteData(siteData);
+                System.out.println(getTimestamp() + " : 📤 Enviando para barrel " + targetBarrelId + "...");
+                targetBarrel.storeSiteData(siteData); // Envia a cópia marcada
                 System.out.println(
                         getTimestamp() + " : ✅ Atualização propagada com sucesso para barrel " + targetBarrelId);
                 successCount++;
@@ -596,13 +644,14 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                         + ": " + e.getMessage());
                 failCount++;
 
-                // Remover barrel inativa do mapa
+                // Tenta verificar se a barrel está realmente inativa antes de remover
                 try {
-                    targetBarrel.gatewaypong("Barrel" + targetBarrelId);
+                    targetBarrel.gatewaypong("PropagateCheck" + barrelId);
                 } catch (RemoteException re) {
                     System.err.println(
-                            getTimestamp() + " : ❌ Barrel " + targetBarrelId + " não responde. Removendo do registro.");
-                    barrels.remove(targetBarrelId);
+                            getTimestamp() + " : ❌ Barrel " + targetBarrelId
+                                    + " não responde ao pong. Removendo do registro local.");
+                    barrels.remove(targetBarrelId); // Remove do mapa original
                 }
             }
         }
@@ -613,7 +662,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Indexa tokens (palavras) de uma página.
-     * 
+     *
      * @param tokens Tokens a serem indexados.
      * @param url    URL associada aos tokens.
      */
@@ -639,25 +688,21 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             tokenCount++;
         }
 
-        if (tokenCount > 0) {
-            System.out.println(getTimestamp() + " : 📊 Indexados " + tokenCount + " tokens para URL: " + url);
-        }
+        // if (tokenCount > 0) {
+        // System.out.println(getTimestamp() + " : 📊 Indexados " + tokenCount + "
+        // tokens para URL: " + url);
+        // }
     }
 
     /**
-     * Pesquisa páginas que contêm todas as palavras especificadas.
-     * 
-     * @param words Conjunto de palavras a serem pesquisadas.
-     * @return Lista de URLs que contêm todas as palavras especificadas.
-     */
-    /**
      * Pesquisa páginas que contêm todas as palavras especificadas, retornando-as
      * ordenadas pelo número de links que apontam para elas.
-     * 
+     *
      * @param words Conjunto de palavras a serem pesquisadas.
      * @return Lista de URLs que contêm todas as palavras especificadas, ordenadas.
      */
-    public List<String> searchPagesByWords(Set<String> words) {
+    public List<String> searchPagesByWords(Set<String> words) throws RemoteException { // Adicionado throws
+                                                                                       // RemoteException
         if (words == null || words.isEmpty()) {
             return new ArrayList<>();
         }
@@ -679,30 +724,33 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             indexLock.readLock().unlock();
         }
 
-        // Filtra as páginas que contêm todas as palavras e as ordena
-        List<Map.Entry<String, Integer>> sortedPages = null;
-        try {
-            sortedPages = getPagesOrderedByIncomingLinks(); // Ordenação global
-        } catch (RemoteException e) {
-            System.err.println(getTimestamp() + " : ❌ Erro ao ordenar páginas por links: " + e.getMessage());
-            return new ArrayList<>(pageMatchCount.keySet());
+        // Filtra as páginas que contêm todas as palavras
+        List<String> matchingPages = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : pageMatchCount.entrySet()) {
+            if (entry.getValue() == words.size()) {
+                matchingPages.add(entry.getKey());
+            }
         }
 
+        // Ordena as páginas correspondentes pelo número de links de entrada
+        List<Map.Entry<String, Integer>> sortedAllPages = getPagesOrderedByIncomingLinks(); // Ordenação global
+
         List<String> result = new ArrayList<>();
-        for (Map.Entry<String, Integer> entry : sortedPages) {
-            if (pageMatchCount.containsKey(entry.getKey()) && pageMatchCount.get(entry.getKey()) == words.size()) {
-                result.add(entry.getKey());
+        for (Map.Entry<String, Integer> sortedEntry : sortedAllPages) {
+            if (matchingPages.contains(sortedEntry.getKey())) {
+                result.add(sortedEntry.getKey());
             }
         }
 
         System.out.println(
-                getTimestamp() + " : 🔍 Pesquisa concluída - Palavras: " + words + ", Resultados: " + result.size());
+                getTimestamp() + " : 🔍 Pesquisa concluída - Palavras: " + words + ", Resultados ordenados: "
+                        + result.size());
         return result;
     }
 
     /**
      * Retorna a contagem de referências para uma URL.
-     * 
+     *
      * @param url URL para a qual a contagem de referências deve ser retornada.
      * @return Contagem de referências para a URL especificada.
      */
@@ -717,7 +765,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Retorna páginas ordenadas por número de links apontando para elas.
-     * 
+     *
      * @return Lista de entradas de páginas ordenadas por contagem de links.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
@@ -725,10 +773,13 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         indexLock.readLock().lock();
         try {
             List<Map.Entry<String, Integer>> sortedPages = new ArrayList<>(urlReferences.entrySet());
+            // Ordena decrescente pelo valor (contagem de links)
             sortedPages.sort((entry1, entry2) -> Integer.compare(entry2.getValue(), entry1.getValue()));
-            for (Map.Entry<String, Integer> entry : sortedPages) {
-                System.out.println(getTimestamp() + " : 📊 Página: " + entry.getKey() + ", Links: " + entry.getValue());
-            }
+            // Log removido para não poluir
+            // for (Map.Entry<String, Integer> entry : sortedPages) {
+            // System.out.println(getTimestamp() + " : 📊 Página: " + entry.getKey() + ",
+            // Links: " + entry.getValue());
+            // }
             return sortedPages;
         } finally {
             indexLock.readLock().unlock();
@@ -737,14 +788,14 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Retorna páginas que apontam para uma URL específica.
-     * 
+     *
      * @param url URL para a qual as páginas que apontam devem ser retornadas.
      * @return Lista de URLs que apontam para a URL especificada.
      */
     public List<String> getPagesLinkingTo(String url) {
         indexLock.readLock().lock();
         try {
-            List<String> result = incomingLinks.getOrDefault(url, new ArrayList<>());
+            List<String> result = incomingLinks.getOrDefault(url, Collections.emptyList()); // Usa lista vazia imutável
             return new ArrayList<>(result); // Retorna uma cópia da lista
         } finally {
             indexLock.readLock().unlock();
@@ -753,10 +804,12 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Salva o estado atual da barrel em um arquivo JSON.
-     * 
+     *
      * @param caminhoArquivo Caminho do arquivo onde o estado deve ser salvo.
      */
     public void saveState(String caminhoArquivo) {
+        // Adquire o lock de estado para garantir que não haja salvamento concorrente
+        stateLock.writeLock().lock();
         try {
             File file = new File(caminhoArquivo);
             File parentDir = file.getParentFile();
@@ -765,6 +818,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             }
 
             Set<SiteData> siteDataCopy;
+            // Sincroniza o acesso ao siteDataSet para criar a cópia
             synchronized (siteDataSet) {
                 siteDataCopy = new HashSet<>(siteDataSet);
             }
@@ -776,26 +830,32 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 writer.write(json);
             }
 
-            System.out.println(getTimestamp() + " : 💾 Estado salvo com sucesso no ficheiro JSON: " + caminhoArquivo);
+            System.out.println(
+                    getTimestamp() + " : 💾 Estado (" + siteDataCopy.size() + " sites) salvo em: " + caminhoArquivo);
 
         } catch (Exception e) {
             System.err.println(getTimestamp() + " : ❌ Erro ao salvar estado no ficheiro JSON: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            stateLock.writeLock().unlock();
         }
     }
 
     /**
      * Carrega o estado da barrel a partir de um arquivo JSON.
-     * 
+     *
      * @param caminhoArquivo Caminho do arquivo de onde o estado deve ser carregado.
      */
     public void carregarEstadoDeJSON(String caminhoArquivo) {
         File file = new File(caminhoArquivo);
         if (!file.exists()) {
-            System.out.println(getTimestamp() + " : ℹ️ Nenhum estado salvo encontrado para esta barrel.");
+            System.out.println(getTimestamp() + " : ℹ️ Nenhum estado salvo encontrado em: " + caminhoArquivo);
             return;
         }
 
+        // Adquire locks para garantir exclusividade durante o carregamento
+        stateLock.writeLock().lock();
+        indexLock.writeLock().lock();
         try (FileReader reader = new FileReader(file)) {
             System.out.println(getTimestamp() + " : 📂 Carregando estado do arquivo: " + caminhoArquivo);
 
@@ -807,45 +867,48 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 loadedSiteData = new HashSet<>();
             }
 
-            // Adquirir write lock para atualização dos índices
-            indexLock.writeLock().lock();
-            try {
-                // Limpar índices existentes
-                invertedIndex.clear();
-                urlReferences.clear();
-                urlTexts.clear();
-                incomingLinks.clear();
-
-                synchronized (siteDataSet) {
-                    siteDataSet.clear();
-                    siteDataSet.addAll(loadedSiteData);
-                }
-
-                // Reindexa dados localmente
-                for (SiteData siteData : loadedSiteData) {
-                    // Processar sem propagar
-                    siteData.setPropagated(true);
-                    processLocalUpdate(siteData);
-                }
-            } finally {
-                indexLock.writeLock().unlock();
+            // Limpar estruturas atuais ANTES de carregar e reindexar
+            invertedIndex.clear();
+            urlReferences.clear();
+            urlTexts.clear();
+            incomingLinks.clear();
+            synchronized (siteDataSet) {
+                siteDataSet.clear();
+                siteDataSet.addAll(loadedSiteData); // Adiciona os dados carregados
             }
 
-            System.out.println(getTimestamp() + " : 📊 Estado carregado - Entradas: " + loadedSiteData.size());
+            System.out.println(getTimestamp() + " : 🔄 Reindexando dados carregados...");
+            // Reindexa dados localmente a partir do JSON carregado
+            for (SiteData siteData : loadedSiteData) {
+                // Processar sem propagar, pois já está no estado salvo
+                siteData.setPropagated(true);
+                processLocalUpdate(siteData); // Chama o método que atualiza os índices
+            }
+
+            System.out.println(
+                    getTimestamp() + " : 📊 Estado carregado e reindexado - Entradas: " + loadedSiteData.size());
 
         } catch (Exception e) {
-            System.err.println(getTimestamp() + " : ❌ Erro ao carregar JSON: " + e.getMessage());
+            System.err.println(getTimestamp() + " : ❌ Erro ao carregar/reindexar estado do JSON: " + e.getMessage());
             e.printStackTrace();
+            // Limpa tudo em caso de erro grave no carregamento
+            invertedIndex.clear();
+            urlReferences.clear();
+            urlTexts.clear();
+            incomingLinks.clear();
             synchronized (siteDataSet) {
                 siteDataSet.clear();
             }
+        } finally {
+            indexLock.writeLock().unlock();
+            stateLock.writeLock().unlock();
         }
     }
 
     /**
      * Retorna as URLs que apontam para uma URL específica, ordenadas pelo número
      * de links que apontam para elas.
-     * 
+     *
      * @param url URL para a qual as URLs que apontam devem ser retornadas.
      * @return Lista de URLs que apontam para a URL especificada, ordenadas.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
@@ -858,7 +921,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             }
 
             // Obtém os links que apontam para a URL
-            List<String> referenciadores = incomingLinks.getOrDefault(url, new ArrayList<>());
+            List<String> referenciadores = incomingLinks.getOrDefault(url, Collections.emptyList());
+            if (referenciadores.isEmpty()) {
+                return new ArrayList<>();
+            }
 
             // Obtém todas as páginas ordenadas por número de links
             List<Map.Entry<String, Integer>> sortedPages = getPagesOrderedByIncomingLinks();
@@ -866,6 +932,7 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
             // Filtra os referenciadores com base na ordenação global
             List<String> ordenados = new ArrayList<>();
             for (Map.Entry<String, Integer> entry : sortedPages) {
+                // Verifica se a página ordenada está na lista de referenciadores
                 if (referenciadores.contains(entry.getKey())) {
                     ordenados.add(entry.getKey());
                 }
@@ -879,12 +946,22 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
 
     /**
      * Método principal para iniciar a barrel.
-     * 
+     *
+     * @param args Argumentos da linha de comando, incluindo o ID da barrel e o
+     *             arquivo de propriedades.
+     */
+    /**
+     * Método principal para iniciar a barrel.
+     *
      * @param args Argumentos da linha de comando, incluindo o ID da barrel e o
      *             arquivo de propriedades.
      */
     public static void main(String[] args) {
         String registryNibs;
+        String myIP = null; // Variável para armazenar o IP
+        RMIGatewayIBSDownloader gateway = null; // Declarar fora do try para acesso no catch final se necessário
+        IndexStorageBarrel barrel = null; // Declarar fora do try para acesso no catch final se necessário
+        int barrelId = -1; // Inicializar com valor inválido
 
         try {
             // Verificar argumentos
@@ -892,88 +969,214 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
                 System.err.println(
                         LocalDateTime.now() + " : ❌ Erro: Necessário fornecer ID da barrel e arquivo de propriedades");
                 System.out.println(
-                        LocalDateTime.now() + " : ℹ️ Uso: java IndexStorageBarrel <barrelId> <arquivo.properties>");
+                        LocalDateTime.now()
+                                + " : ℹ️ Uso: java IndexStorageBarrel <barrelId> <arquivo.properties> [seu_ip_opcional]");
                 System.exit(1);
+            }
+
+            // Validar e obter ID da barrel primeiro
+            try {
+                barrelId = Integer.parseInt(args[0]);
+                if (barrelId < 0) { // Adicionar verificação básica de ID
+                    System.err.println(LocalDateTime.now() + " : ❌ Erro: O ID da barrel (" + args[0]
+                            + ") deve ser um número não negativo.");
+                    System.exit(1);
+                }
+            } catch (NumberFormatException e) {
+                System.err.println(LocalDateTime.now() + " : ❌ Erro: O ID da barrel (" + args[0]
+                        + ") deve ser um número inteiro válido.");
+                System.exit(1);
+            }
+
+            // Tenta obter o IP do terceiro argumento, se fornecido
+            if (args.length >= 3) {
+                myIP = args[2];
+                System.out.println(LocalDateTime.now() + " : ℹ️ Usando IP fornecido: " + myIP);
             }
 
             // Carregar arquivo de propriedades
             Properties prop = new Properties();
             try (InputStream input = new FileInputStream(args[1])) {
-                System.out.println(LocalDateTime.now() + " : 📝 Carregando arquivo de propriedades...");
+                System.out.println(LocalDateTime.now() + " : 📝 Carregando arquivo de propriedades: " + args[1]);
                 prop.load(input);
                 System.out.println(LocalDateTime.now() + " : ✅ Arquivo de propriedades carregado com sucesso");
+
+                // Tenta obter o IP do arquivo de propriedades se não foi passado por argumento
+                if (myIP == null) {
+                    myIP = prop.getProperty("java.rmi.server.hostname");
+                    if (myIP != null && !myIP.isEmpty()) {
+                        System.out.println(LocalDateTime.now() + " : ℹ️ Usando IP do arquivo de propriedades: " + myIP);
+                    } else {
+                        System.out.println(LocalDateTime.now()
+                                + " : ⚠️ IP não fornecido por argumento nem no arquivo de propriedades. RMI pode usar IP padrão.");
+                    }
+                }
+
+                // Define a propriedade RMI hostname se um IP foi obtido
+                if (myIP != null && !myIP.isEmpty()) {
+                    System.setProperty("java.rmi.server.hostname", myIP);
+                    System.out.println(LocalDateTime.now() + " : ⚙️ Definido java.rmi.server.hostname=" + myIP);
+                }
+
             } catch (Exception e) {
                 System.err.println(
-                        LocalDateTime.now() + " : ❌ Erro ao carregar arquivo de propriedades: " + e.getMessage());
+                        LocalDateTime.now() + " : ❌ Erro ao carregar arquivo de propriedades '" + args[1] + "': "
+                                + e.getMessage());
                 System.exit(1);
             }
 
             // Obter endereço do registry RMI
             registryNibs = prop.getProperty("registryNibs");
             if (registryNibs == null || registryNibs.isEmpty()) {
-                System.err.println(LocalDateTime.now() + " : ❌ Erro: propriedade 'registryNibs' não encontrada");
+                System.err.println(LocalDateTime.now()
+                        + " : ❌ Erro: propriedade 'registryNibs' não encontrada no arquivo " + args[1]);
                 System.exit(1);
             }
-            System.out.println(LocalDateTime.now() + " : 🔍 Registry: " + registryNibs);
+            System.out.println(LocalDateTime.now() + " : 🔍 Endereço do Gateway RMI: " + registryNibs);
 
             // Conectar ao gateway
-            RMIGatewayIBSDownloader gateway;
             try {
-                System.out.println(LocalDateTime.now() + " : 🔄 Conectando ao gateway: " + registryNibs);
+                System.out.println(LocalDateTime.now() + " : 🔄 Conectando ao gateway em " + registryNibs + "...");
                 gateway = (RMIGatewayIBSDownloader) Naming.lookup(registryNibs);
                 System.out.println(LocalDateTime.now() + " : ✅ Conexão estabelecida com o gateway");
             } catch (Exception e) {
-                System.err.println(LocalDateTime.now() + " : ❌ Erro ao conectar ao Gateway: " + e.getMessage());
+                System.err.println(LocalDateTime.now() + " : ❌ Erro fatal ao conectar ao Gateway RMI em " + registryNibs
+                        + ": " + e.getMessage());
                 e.printStackTrace();
                 System.exit(1);
-                return;
+                // return; // Não é mais necessário devido ao System.exit(1)
             }
 
-            // Verificar se o ID da barrel já está em uso
-            int barrelId = Integer.parseInt(args[0]);
+            // Verificar se o ID da barrel já está em uso (já temos barrelId validado)
             try {
+                System.out.println(LocalDateTime.now() + " : 🔍 Verificando se ID " + barrelId + " já está em uso...");
                 Map<Integer, RMIIndexStorageBarrel> existingBarrels = gateway.getBarrels();
                 if (existingBarrels.containsKey(barrelId)) {
-                    System.err.println(LocalDateTime.now() + " : ❌ ERRO: Já existe uma Barrel com ID " + barrelId);
-                    System.err.println(LocalDateTime.now() + " : ⚠️  O sistema não permite IDs duplicados");
+                    System.err.println(LocalDateTime.now() + " : ❌ ERRO FATAL: Já existe uma Barrel registrada com ID "
+                            + barrelId);
+                    System.err.println(LocalDateTime.now() + " : ⚠️ O sistema não permite IDs duplicados.");
                     System.err.println(LocalDateTime.now() + " : 📋 IDs já registrados: " + existingBarrels.keySet());
-                    System.err.println(LocalDateTime.now() + " : 🛑 O programa será encerrado");
+                    System.err.println(LocalDateTime.now() + " : 🛑 O programa será encerrado.");
                     System.exit(1);
                 }
+                System.out.println(LocalDateTime.now() + " : ✅ ID " + barrelId + " está disponível.");
             } catch (RemoteException e) {
-                System.err.println(LocalDateTime.now() + " : ❌ Erro ao verificar IDs existentes: " + e.getMessage());
+                System.err.println(
+                        LocalDateTime.now() + " : ❌ Erro ao verificar IDs existentes no gateway: " + e.getMessage());
                 System.exit(1);
             }
 
+            // --- Bloco principal de criação, registro e sincronização ---
             try {
-                // Criar a nova barrel
+                // Criar a nova barrel (carrega estado local no construtor)
                 System.out.println(LocalDateTime.now() + " : 🚀 Criando IndexStorageBarrel com ID " + barrelId);
-                IndexStorageBarrel barrel = new IndexStorageBarrel(barrelId);
+                barrel = new IndexStorageBarrel(barrelId); // Atribui à variável declarada fora
 
                 // Registrar a barrel no gateway
-                System.out.println(LocalDateTime.now() + " : 🔄 Registrando barrel no gateway...");
+                System.out.println(LocalDateTime.now() + " : 🔄 Registrando barrel " + barrelId + " no gateway...");
                 gateway.registerIBS(barrel.barrelId, barrel);
-                System.out.println(LocalDateTime.now() + " : ✅ Barrel " + barrelId + " registrada com sucesso!");
+                System.out.println(
+                        LocalDateTime.now() + " : ✅ Barrel " + barrelId + " registrada com sucesso no gateway!");
 
-                // Sincronizar com barrels existentes após o registro
-                System.out.println(LocalDateTime.now() + " : 🔄 Iniciando sincronização com barrels existentes...");
-                barrel.syncWithExistingBarrels(gateway);
+                // Sincronizar com barrels existentes após o registro (fazendo merge)
+                System.out.println(
+                        LocalDateTime.now() + " : 🔄 Iniciando sincronização (merge) com barrels existentes...");
+                barrel.syncWithExistingBarrels(gateway); // O estado local agora contém o merge
 
-                System.out.println(LocalDateTime.now() + " : 🎉 Barrel " + barrelId + " inicializada e pronta!");
+                // Registrar esta barrel nas outras barrels existentes (e vice-versa)
+                System.out.println(LocalDateTime.now() + " : 🔄 Registrando esta barrel nas outras existentes...");
+                Map<Integer, RMIIndexStorageBarrel> allBarrels = gateway.getBarrels(); // Pega a lista atualizada
+                barrel.registerallIBS(allBarrels, barrel.barrelId, barrel);
+
+                System.out.println(
+                        LocalDateTime.now() + " : 🎉 Barrel " + barrelId + " inicializada e sincronizada!");
+
+                // ---> INÍCIO DA NOVA LÓGICA: Propagar o estado final da nova barrel para as
+                // outras <---
+                System.out.println(LocalDateTime.now() + " : 📤 Iniciando propagação do estado final da Barrel "
+                        + barrelId + " para as outras...");
+                Set<SiteData> finalLocalState;
+                synchronized (barrel.siteDataSet) { // Acessa o set sincronizado da barrel
+                    finalLocalState = new HashSet<>(barrel.siteDataSet); // Cria uma cópia segura para iterar
+                }
+
+                int propagatedCount = 0;
+                if (!finalLocalState.isEmpty()) {
+                    System.out.println(LocalDateTime.now() + " : 📤 Propagando " + finalLocalState.size()
+                            + " itens do estado final...");
+                    for (SiteData siteDataToPropagate : finalLocalState) {
+                        try {
+                            // Cria uma CÓPIA para propagar, garantindo que está marcada como propagada
+                            SiteData copyToPropagate = new SiteData(siteDataToPropagate.url, siteDataToPropagate.tokens,
+                                    siteDataToPropagate.links);
+                            copyToPropagate.text = siteDataToPropagate.text;
+                            copyToPropagate.title = siteDataToPropagate.title;
+                            copyToPropagate.setPropagated(true); // ESSENCIAL: Marca a cópia como propagada
+
+                            // Chama o método que envia para todas as outras barrels conhecidas pela
+                            // instância 'barrel'
+                            barrel.propagateUpdate(copyToPropagate);
+                            propagatedCount++;
+
+                        } catch (RemoteException e) {
+                            System.err.println(LocalDateTime.now() + " : ⚠️ Erro RMI ao propagar SiteData para URL "
+                                    + siteDataToPropagate.url + ": " + e.getMessage());
+                            // Continua com o próximo item
+                        } catch (Exception e) {
+                            System.err.println(
+                                    LocalDateTime.now() + " : ❌ Erro inesperado ao preparar/propagar SiteData para URL "
+                                            + siteDataToPropagate.url + ": " + e.getMessage());
+                            e.printStackTrace(); // Log mais detalhado para erros inesperados
+                        }
+                    }
+                    System.out.println(LocalDateTime.now() + " : 📤 Propagação do estado final concluída. "
+                            + propagatedCount + " itens enviados para outras barrels.");
+                } else {
+                    System.out.println(
+                            LocalDateTime.now() + " : ℹ️ Nenhum SiteData local para propagar após sincronização.");
+                }
+                // ---> FIM DA NOVA LÓGICA <---
+
+                System.out.println(
+                        LocalDateTime.now() + " : ✅ Barrel " + barrelId + " totalmente operacional.");
 
             } catch (Exception e) {
-                System.err.println(LocalDateTime.now() + " : ❌ Erro ao criar/registrar Barrel: " + e.getMessage());
+                // Este catch lida com erros durante a criação, registro, sync ou propagação
+                // final
+                System.err.println(LocalDateTime.now()
+                        + " : ❌ Erro fatal durante a fase de inicialização/sincronização/propagação da Barrel "
+                        + barrelId + ": " + e.getMessage());
                 e.printStackTrace();
+                // Tentar desregistrar do gateway se já foi registrado
+                if (gateway != null && barrel != null && barrelId != -1) {
+                    try {
+                        System.out.println(LocalDateTime.now() + " : 🔄 Tentando desregistrar Barrel " + barrelId
+                                + " do gateway devido a erro...");
+                        gateway.unsubscribeIBS(barrelId);
+                        System.out.println(
+                                LocalDateTime.now() + " : ✅ Barrel " + barrelId + " desregistrada do gateway.");
+                    } catch (RemoteException re) {
+                        System.err.println(LocalDateTime.now() + " : ⚠️ Falha ao desregistrar Barrel " + barrelId
+                                + " do gateway: " + re.getMessage());
+                    }
+                }
                 System.exit(1);
             }
 
-        } catch (NumberFormatException e) {
-            System.err.println(LocalDateTime.now() + " : ❌ Erro: O ID da barrel deve ser um número válido");
-            System.exit(1);
+            // Catch para erros que podem ocorrer antes da conexão com o gateway ou
+            // validação de ID
         } catch (Exception e) {
-            System.err.println(LocalDateTime.now() + " : ❌ Erro inesperado: " + e.getMessage());
+            System.err.println(LocalDateTime.now()
+                    + " : ❌ Erro inesperado e fatal na inicialização (antes da criação da barrel): " + e.getMessage());
             e.printStackTrace();
             System.exit(1);
         }
+
+        // Se chegou aqui, a barrel está rodando. O programa principal (main thread)
+        // pode terminar,
+        // mas o objeto RMI (barrel) continuará vivo por causa do UnicastRemoteObject.
+        System.out.println(LocalDateTime.now() + " : ▶️ Thread principal (main) da Barrel " + barrelId
+                + " concluída. Objeto RMI permanece ativo.");
+
     }
 }
