@@ -9,15 +9,33 @@
 <body>
     <div class="container">
         <h1>Search</h1>
-        <div class="form-container">
-            <form action="/search" method="post">
+        
+        <div th:if="${searchType == 'url'}" class="form-container">
+            <h2>Find Pages Linking to URL</h2>
+            <form action="/search-links" method="post">
                 <div class="form-group">
-                    <label for="query">Search Query:</label>
-                    <input type="text" id="query" name="query" required class="form-input">
+                    <label for="url">Enter URL:</label>
+                    <input type="url" id="url" name="url" required class="form-input" 
+                           placeholder="Enter the URL to find linking pages">
                 </div>
-                <input type="hidden" name="type" th:value="${param.type != null ? param.type : 'terms'}">
                 <input type="submit" value="Search" class="submit-button">
             </form>
+        </div>
+
+        <div th:unless="${searchType == 'url'}" class="form-container">
+            <h2>Search by Terms</h2>
+            <form action="/search" method="post">
+                <div class="form-group">
+                    <label for="terms">Search Terms:</label>
+                    <input type="text" id="terms" name="terms" required class="form-input" 
+                           placeholder="Enter search terms (space-separated)">
+                </div>
+                <input type="submit" value="Search" class="submit-button">
+            </form>
+        </div>
+
+        <div class="back-link">
+            <a href="/">Back to Home</a>
         </div>
     </div>
 </body>

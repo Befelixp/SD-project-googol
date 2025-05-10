@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 import meta1sd.RMIClient;
 import meta1sd.RMIGatewayClientInterface;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The WebClient class represents a client in the distributed system.
@@ -32,6 +34,8 @@ public class WebClient extends UnicastRemoteObject {
 
     @Value("${registryName}")
     private String registryName;
+
+    private static final Logger logger = LoggerFactory.getLogger(WebClient.class);
 
     /**
      * Default constructor for Spring bean initialization.
@@ -127,16 +131,10 @@ public class WebClient extends UnicastRemoteObject {
      * @return the search results
      */
     public List<String> getPagesbyTerms(String terms) {
-        if (gateway == null) {
-            System.err.println("Gateway not connected");
-            return null;
-        }
         try {
-            List<String> result = gateway.returnPagesbyWords(terms);
-            return result;
-        } catch (Exception e) {
-            System.err.println("Error searching terms: " + e.getMessage());
-            e.printStackTrace();
+            return gateway.returnPagesbyWords(terms);
+        } catch (RemoteException e) {
+            logger.error("Error getting pages by terms: {}", e.getMessage());
             return null;
         }
     }
@@ -158,6 +156,15 @@ public class WebClient extends UnicastRemoteObject {
         } catch (Exception e) {
             System.err.println("Error consulting URL: " + e.getMessage());
             e.printStackTrace();
+            return null;
+        }
+    }
+
+    public List<String> getPagesbyUrl(String url) {
+        try {
+            return gateway.returnLinkedUrls(url);
+        } catch (RemoteException e) {
+            logger.error("Error getting pages by URL: {}", e.getMessage());
             return null;
         }
     }

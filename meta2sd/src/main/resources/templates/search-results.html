@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Results</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="/main.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>Search Results</h1>
+        
+        <div class="search-info">
+            <p th:if="${searchTerms != null}">
+                Results for terms: <span th:text="${searchTerms}" class="search-terms"></span>
+            </p>
+            <p th:if="${searchUrl != null}">
+                Pages linking to: <span th:text="${searchUrl}" class="search-terms"></span>
+            </p>
+            <p th:if="${totalResults != null}">
+                Total results: <span th:text="${totalResults}"></span>
+            </p>
+        </div>
+
+        <div th:if="${message}" th:class="${messageType}" class="message">
+            <p th:text="${message}"></p>
+        </div>
+
+        <div th:if="${results != null}" class="results-container">
+            <div th:if="${results.empty}" class="no-results">
+                <p>No results found.</p>
+            </div>
+            <ul th:unless="${results.empty}" class="results-list">
+                <li th:each="result : ${results}">
+                    <a th:href="${result}" th:text="${result}" target="_blank"></a>
+                </li>
+            </ul>
+
+            <!-- Pagination Controls -->
+            <div th:if="${totalPages > 1}" class="pagination">
+                <div class="pagination-info">
+                    Page <span th:text="${currentPage}"></span> of <span th:text="${totalPages}"></span>
+                </div>
+                <div class="pagination-controls">
+                    <!-- Previous Page -->
+                    <a th:if="${currentPage > 1}" 
+                       th:href="@{/search-results(terms=${searchTerms}, url=${searchUrl}, page=${currentPage - 1})}"
+                       class="pagination-button">Previous</a>
+                    
+                    <!-- Page Numbers -->
+                    <div class="page-numbers">
+                        <a th:each="pageNum : ${#numbers.sequence(1, totalPages)}"
+                           th:href="@{/search-results(terms=${searchTerms}, url=${searchUrl}, page=${pageNum})}"
+                           th:text="${pageNum}"
+                           th:class="${pageNum == currentPage ? 'current-page' : 'pagination-button'}">
+                        </a>
+                    </div>
+                    
+                    <!-- Next Page -->
+                    <a th:if="${currentPage < totalPages}"
+                       th:href="@{/search-results(terms=${searchTerms}, url=${searchUrl}, page=${currentPage + 1})}"
+                       class="pagination-button">Next</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="navigation-links">
+            <a th:href="@{/search-page(type=${searchUrl != null ? 'url' : null})}" class="nav-link">New Search</a>
+            <a href="/" class="nav-link">Back to Home</a>
+        </div>
+    </div>
+</body>
+</html> 

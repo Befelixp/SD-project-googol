@@ -146,4 +146,140 @@ input[type="submit"]:hover {
 
 .back-link a:hover {
     text-decoration: underline;
+}
+
+.results-container {
+    margin-top: 2rem;
+}
+
+.results-container h2 {
+    color: #2c3e50;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.results-list {
+    list-style: none;
+    padding: 0;
+}
+
+.results-list li {
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+    transition: background-color 0.3s ease;
+}
+
+.results-list li:hover {
+    background-color: #e9ecef;
+}
+
+.results-list a {
+    color: #007bff;
+    text-decoration: none;
+    display: block;
+    word-break: break-all;
+}
+
+.results-list a:hover {
+    text-decoration: underline;
+}
+
+.no-results {
+    text-align: center;
+    color: #6c757d;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.message.info {
+    background-color: #cce5ff;
+    color: #004085;
+    border: 1px solid #b8daff;
+}
+
+.search-info {
+    text-align: center;
+    margin: 1rem 0;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.search-terms {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.navigation-links {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+}
+
+.nav-link {
+    color: #007bff;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+    transition: background-color 0.3s ease;
+}
+
+.nav-link:hover {
+    background-color: #e9ecef;
+    text-decoration: none;
+}
+
+.pagination {
+    margin-top: 2rem;
+    text-align: center;
+}
+
+.pagination-info {
+    margin-bottom: 1rem;
+    color: #666;
+}
+
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.page-numbers {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0 1rem;
+}
+
+.pagination-button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    color: #007bff;
+    text-decoration: none;
+    background-color: #fff;
+    transition: all 0.3s ease;
+}
+
+.pagination-button:hover {
+    background-color: #f8f9fa;
+    border-color: #007bff;
+}
+
+.current-page {
+    background-color: #007bff;
+    color: #fff;
+    border-color: #007bff;
+}
+
+.current-page:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+    color: #fff;
 } 
