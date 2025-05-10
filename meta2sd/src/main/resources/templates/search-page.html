@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="/main.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>Search</h1>
+        <div class="form-container">
+            <form action="/search" method="post">
+                <div class="form-group">
+                    <label for="query">Search Query:</label>
+                    <input type="text" id="query" name="query" required class="form-input">
+                </div>
+                <input type="hidden" name="type" th:value="${param.type != null ? param.type : 'terms'}">
+                <input type="submit" value="Search" class="submit-button">
+            </form>
+        </div>
+    </div>
+</body>
+</html> 
