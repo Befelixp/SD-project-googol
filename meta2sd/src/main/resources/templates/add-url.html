@@ -18,6 +18,12 @@
                 <input type="submit" value="Add URL" class="submit-button">
             </form>
         </div>
+        <div th:if="${message}" th:class="${messageType}" class="message">
+            <p th:text="${message}"></p>
+        </div>
+        <div class="back-link">
+            <a href="/">Back to Home</a>
+        </div>
     </div>
 </body>
 </html> 

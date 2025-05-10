@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title th:text="${title}">Page Title</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="/main.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1 th:text="${title}">Page Title</h1>
+        <div class="form-container">
+            <p th:text="${actionDescription}">Action description</p>
+            <form th:action="${actionUrl}" method="post">
+                <div class="form-group">
+                    <input type="text" name="input" required class="form-input">
+                </div>
+                <input type="submit" value="Submit" class="submit-button">
+            </form>
+        </div>
+    </div>
+</body>
+</html> 

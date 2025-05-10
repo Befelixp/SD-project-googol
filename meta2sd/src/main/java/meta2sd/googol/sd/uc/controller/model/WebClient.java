@@ -6,7 +6,11 @@ import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import jakarta.annotation.PostConstruct;
 import meta1sd.RMIClient;
 import meta1sd.RMIGatewayClientInterface;
 
@@ -14,28 +18,76 @@ import meta1sd.RMIGatewayClientInterface;
  * The WebClient class represents a client in the distributed system.
  * It extends UnicastRemoteObject to support RMI communication.
  */
+@Component
 public class WebClient extends UnicastRemoteObject {
 
-    private int id, characterLimit;
+    private int id = 1; // Default ID
+
+    @Value("${characterLimit}")
+    private int characterLimit;
+
     private RMIGatewayClientInterface gateway;
+    private static final int MAX_RETRIES = 5;
+    private static final int RETRY_DELAY_MS = 2000;
+
+    @Value("${registryName}")
+    private String registryName;
 
     /**
-     * Constructor for the WebClient class.
+     * Default constructor for Spring bean initialization.
      * 
-     * @param id             the ID of the client
-     * @param registryName   the name of the RMI registry
-     * @param characterLimit the character limit for the search results
-     * @throws RemoteException       if an RMI error occurs
-     * @throws MalformedURLException if the URL is invalid
-     * @throws NotBoundException     if the RMI registry is not bound
+     * @throws RemoteException if an RMI error occurs
      */
-    public WebClient(int id, String registryName, int characterLimit)
-            throws RemoteException, MalformedURLException, NotBoundException {
-        this.id = id;
-        this.characterLimit = characterLimit;
+    public WebClient() throws RemoteException {
+        super();
+    }
 
-        gateway = (RMIGatewayClientInterface) Naming.lookup(registryName);
-        System.out.println("WebClient started: " + id);
+    /**
+     * Initializes the WebClient after properties are injected.
+     * This method is called after all properties are set.
+     */
+    @PostConstruct
+    public void init() {
+        if (registryName == null || registryName.trim().isEmpty()) {
+            throw new IllegalStateException("registryName property is not set in application.properties");
+        }
+        try {
+            connectToGateway();
+        } catch (RemoteException e) {
+            throw new IllegalStateException("Failed to connect to gateway", e);
+        }
+    }
+
+    /**
+     * Attempts to connect to the gateway with retry logic.
+     * 
+     * @throws RemoteException if an RMI error occurs
+     */
+    private void connectToGateway() throws RemoteException {
+        int retries = 0;
+        while (retries < MAX_RETRIES) {
+            try {
+                System.out.println("Attempting to connect to gateway at: " + registryName);
+                gateway = (RMIGatewayClientInterface) Naming.lookup(registryName);
+                System.out.println("WebClient started: " + id);
+                return;
+            } catch (MalformedURLException | NotBoundException e) {
+                retries++;
+                if (retries == MAX_RETRIES) {
+                    System.err.println("Failed to connect to gateway after " + MAX_RETRIES + " attempts");
+                    e.printStackTrace();
+                    return;
+                }
+                System.out
+                        .println("Connection attempt " + retries + " failed. Retrying in " + RETRY_DELAY_MS + "ms...");
+                try {
+                    TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
     }
 
     /**
@@ -54,10 +106,15 @@ public class WebClient extends UnicastRemoteObject {
      * @return true if the URL was added successfully, false otherwise
      */
     public boolean addURL(String url) {
+        if (gateway == null) {
+            System.err.println("Gateway not connected");
+            return false;
+        }
         try {
             gateway.clientIndexUrl(url);
             return true;
         } catch (Exception e) {
+            System.err.println("Error adding URL: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -70,10 +127,15 @@ public class WebClient extends UnicastRemoteObject {
      * @return the search results
      */
     public List<String> getPagesbyTerms(String terms) {
+        if (gateway == null) {
+            System.err.println("Gateway not connected");
+            return null;
+        }
         try {
             List<String> result = gateway.returnPagesbyWords(terms);
             return result;
         } catch (Exception e) {
+            System.err.println("Error searching terms: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
@@ -86,10 +148,15 @@ public class WebClient extends UnicastRemoteObject {
      * @return the URL data
      */
     public List<String> returnLinkedUrls(String urlConsult) {
+        if (gateway == null) {
+            System.err.println("Gateway not connected");
+            return null;
+        }
         try {
             List<String> result = gateway.returnLinkedUrls(urlConsult);
             return result;
         } catch (Exception e) {
+            System.err.println("Error consulting URL: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
