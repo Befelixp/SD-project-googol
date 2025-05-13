@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hacker News Search</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="/main.css" rel="stylesheet">
+    <style>
+
+
+        body {
+            background-color: #f6f6ef;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        .search-container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        h1 {
+            color: #ff6600;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .search-form {
+            margin-bottom: 30px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+
+        .search-input:focus {
+            border-color: #ff6600;
+            outline: none;
+        }
+
+        .search-button {
+            background-color: #ff6600;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+            width: 100%;
+        }
+
+        .search-button:hover {
+            background-color: #e65c00;
+        }
+
+        .results-container {
+            margin-top: 30px;
+        }
+
+        .result-item {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.3s;
+        }
+
+        .result-item:hover {
+            background-color: #fff8f5;
+            border-left: 4px solid #ff6600;
+        }
+
+        .result-item .title {
+            color: #1a0dab;
+            text-decoration: none;
+            font-size: 16px;
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .result-item .url {
+            color: #666;
+            font-size: 14px;
+            display: block;
+            word-break: break-all;
+        }
+
+        .result-item .title:hover {
+            color: #ff6600;
+        }
+
+        .pagination {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .pagination a {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border: 2px solid #ff6600;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #ff6600;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .pagination a:hover {
+            background-color: #ff6600;
+            color: white;
+        }
+
+        .pagination .active {
+            background-color: #ff6600;
+            color: white;
+            border-color: #ff6600;
+        }
+
+        .back-button {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 12px 24px;
+            background-color: #666;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+            font-weight: 500;
+        }
+
+        .back-button:hover {
+            background-color: #555;
+        }
+
+        .alert {
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+
+        .alert-error {
+            background-color: #fff5f5;
+            border: 2px solid #ff4444;
+            color: #cc0000;
+        }
+
+        .alert-info {
+            background-color: #f0f7ff;
+            border: 2px solid #4dabf7;
+            color: #1864ab;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <h1>Hacker News Search</h1>
+        
+        <form class="search-form" action="/hacker-news-search" method="get">
+            <input type="text" name="query" class="search-input" placeholder="Search Hacker News stories..." th:value="${query}">
+            <button type="submit" class="search-button">Search Stories</button>
+        </form>
+
+        <div th:if="${error}" class="alert alert-error" th:text="${error}"></div>
+
+        <div class="results-container" th:if="${results != null}">
+            <div th:if="${results.empty}" class="no-results">
+                <p>No stories found matching your search terms.</p>
+                <p>Try different keywords or check your spelling.</p>
+            </div>
+            
+            <div th:if="${!results.empty}">
+                <div class="result-item" th:each="result : ${results}">
+                    <a th:href="${result.get('url').getAsString()}" target="_blank" class="title" th:text="${result.get('title').getAsString()}"></a>
+                    <span class="url" th:text="${result.get('url').getAsString()}"></span>
+                </div>
+
+                <div class="pagination" th:if="${totalPages > 1}">
+                    <a th:if="${hasPreviousPage}" 
+                       th:href="@{/hacker-news-search(query=${query}, page=${currentPage - 1})}">&laquo; Previous</a>
+                    
+                    <span th:each="i : ${#numbers.sequence(1, totalPages)}">
+                        <a th:if="${i != currentPage}"
+                           th:href="@{/hacker-news-search(query=${query}, page=${i})}"
+                           th:text="${i}"></a>
+                        <span th:if="${i == currentPage}" class="active" th:text="${i}"></span>
+                    </span>
+                    
+                    <a th:if="${hasNextPage}"
+                       th:href="@{/hacker-news-search(query=${query}, page=${currentPage + 1})}">Next &raquo;</a>
+                </div>
+            </div>
+        </div>
+
+        <a href="/" class="back-button">← Back to Home</a>
+    </div>
+</body>
+</html> 

@@ -24,13 +24,12 @@ import org.slf4j.LoggerFactory;
 public class WebClient extends UnicastRemoteObject {
 
     private int id = 1; // Default ID
-
-    @Value("${characterLimit}")
-    private int characterLimit;
-
     private RMIGatewayClientInterface gateway;
     private static final int MAX_RETRIES = 5;
     private static final int RETRY_DELAY_MS = 2000;
+
+    @Value("${characterLimit}")
+    private int characterLimit;
 
     @Value("${registryName}")
     private String registryName;

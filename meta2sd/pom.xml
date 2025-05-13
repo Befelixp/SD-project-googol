@@ -57,6 +57,13 @@
 			<optional>true</optional>
 		</dependency>
 
+		<!-- Gson for JSON processing -->
+		<dependency>
+			<groupId>com.google.code.gson</groupId>
+			<artifactId>gson</artifactId>
+			<version>2.10.1</version>
+		</dependency>
+
 		<!-- Meta1 dependency -->
 		<dependency>
 			<groupId>googol</groupId>
