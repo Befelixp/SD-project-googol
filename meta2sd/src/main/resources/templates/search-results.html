@@ -5,16 +5,194 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="/main.css" rel="stylesheet">
+    <!-- Estilos para os resultados de busca -->
+    <style>
+        body {
+            background-color: #f5f7fa;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        /* Container para cada resultado individual */
+        .search-result {
+            margin-bottom: 1.5rem;
+            padding: 1.25rem;
+            border-radius: 12px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+
+        /* Efeito hover nos resultados */
+        .search-result:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #cbd5e0;
+        }
+
+        /* Estilo do título do resultado */
+        .result-title {
+            color: #4a5568;
+            font-size: 1.25rem;
+            font-weight: 600;
+            text-decoration: none;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .result-title:hover {
+            color: #2b6cb0;
+        }
+
+        /* Estilo da URL do resultado */
+        .result-url {
+            color: #718096;
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        /* Estilo do texto de preview do resultado */
+        .result-text {
+            color: #4a5568;
+            font-size: 0.9375rem;
+            line-height: 1.6;
+        }
+
+        /* Estilos para a paginação */
+        .pagination {
+            margin-top: 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination a {
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            color: #4a5568;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            min-width: 2.5rem;
+            text-align: center;
+        }
+
+        .pagination a:hover {
+            background-color: #edf2f7;
+            border-color: #cbd5e0;
+        }
+
+        .pagination .current {
+            background-color: #4299e1;
+            color: white;
+            border-color: #4299e1;
+        }
+
+        /* Estilos para as informações da busca */
+        .search-info {
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: #edf2f7;
+            border-radius: 8px;
+            color: #4a5568;
+            font-size: 0.9375rem;
+        }
+
+        .search-terms {
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        /* Mensagens de erro ou informação */
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .message.error {
+            background-color: #fff5f5;
+            color: #c53030;
+            border: 1px solid #feb2b2;
+        }
+
+        .message.success {
+            background-color: #f0fff4;
+            color: #2f855a;
+            border: 1px solid #9ae6b4;
+        }
+
+        .message.info {
+            background-color: #ebf8ff;
+            color: #2b6cb0;
+            border: 1px solid #90cdf4;
+        }
+
+        /* Link para voltar */
+        .back-link {
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .back-link a {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            color: #4a5568;
+            text-decoration: none;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .back-link a:hover {
+            background-color: #edf2f7;
+            border-color: #cbd5e0;
+        }
+
+        /* Responsividade */
+        @media (max-width: 640px) {
+            .container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+
+            .search-result {
+                padding: 1rem;
+            }
+
+            .result-title {
+                font-size: 1.125rem;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <h1>Search Results</h1>
         
+        <!-- Informações sobre a busca -->
         <div class="search-info">
-            <p th:if="${searchTerms != null}">
+            <p th:if="${searchTerms != null && !searchTerms.isEmpty()}">
                 Results for terms: <span th:text="${searchTerms}" class="search-terms"></span>
             </p>
-            <p th:if="${searchUrl != null}">
+            <p th:if="${searchUrl != null && !searchUrl.isEmpty()}">
                 Pages linking to: <span th:text="${searchUrl}" class="search-terms"></span>
             </p>
             <p th:if="${totalResults != null}">
@@ -22,51 +200,65 @@
             </p>
         </div>
 
-        <div th:if="${message}" th:class="${messageType}" class="message">
+        <!-- Mensagem de feedback -->
+        <div th:if="${message}" th:class="${'message ' + messageType}" class="message">
             <p th:text="${message}"></p>
         </div>
 
-        <div th:if="${results != null}" class="results-container">
-            <div th:if="${results.empty}" class="no-results">
-                <p>No results found.</p>
-            </div>
-            <ul th:unless="${results.empty}" class="results-list">
-                <li th:each="result : ${results}">
-                    <a th:href="${result}" th:text="${result}" target="_blank"></a>
-                </li>
-            </ul>
+        <!-- Análise do Gemini -->
+        <div th:if="${analysis != null && !analysis.isEmpty()}" class="analysis-container">
+            <h2>Análise dos Resultados</h2>
+            <div class="analysis-content" th:text="${analysis}"></div>
+        </div>
 
-            <!-- Pagination Controls -->
+        <!-- Container dos resultados -->
+        <div th:if="${results != null}" class="results-container">
+            <!-- Mensagem quando não há resultados -->
+            <div th:if="${results.empty}" class="message info">
+                <p th:if="${searchTerms != null && !searchTerms.isEmpty()}">No results found for your search terms.</p>
+                <p th:if="${searchUrl != null && !searchUrl.isEmpty()}">No pages found linking to this URL.</p>
+            </div>
+            <!-- Lista de resultados -->
+            <div th:unless="${results.empty}" class="results-list">
+                <!-- Para resultados do tipo SiteData (busca por termos) -->
+                <div th:each="result : ${results}" th:if="${result != null && result.getClass().name == 'meta1sd.SiteData'}" class="search-result">
+                    <a th:href="${result.url}" 
+                       th:text="${result.title != null ? result.title : result.url}" 
+                       class="result-title" 
+                       target="_blank"></a>
+                    <div th:text="${result.url}" class="result-url"></div>
+                    <div th:text="${result.text}" class="result-text"></div>
+                </div>
+
+                <!-- Para resultados do tipo String (busca por URLs) -->
+                <div th:each="result : ${results}" th:if="${result != null && result.getClass().name == 'java.lang.String'}" class="search-result">
+                    <a th:href="${result}" 
+                       th:text="${result}" 
+                       class="result-title" 
+                       target="_blank"></a>
+                </div>
+            </div>
+
+            <!-- Controles de paginação -->
             <div th:if="${totalPages > 1}" class="pagination">
-                <div class="pagination-info">
-                    Page <span th:text="${currentPage}"></span> of <span th:text="${totalPages}"></span>
-                </div>
-                <div class="pagination-controls">
-                    <!-- Previous Page -->
-                    <a th:if="${currentPage > 1}" 
-                       th:href="@{/search-results(terms=${searchTerms}, url=${searchUrl}, page=${currentPage - 1})}"
-                       class="pagination-button">Previous</a>
-                    
-                    <!-- Page Numbers -->
-                    <div class="page-numbers">
-                        <a th:each="pageNum : ${#numbers.sequence(1, totalPages)}"
-                           th:href="@{/search-results(terms=${searchTerms}, url=${searchUrl}, page=${pageNum})}"
-                           th:text="${pageNum}"
-                           th:class="${pageNum == currentPage ? 'current-page' : 'pagination-button'}">
-                        </a>
-                    </div>
-                    
-                    <!-- Next Page -->
-                    <a th:if="${currentPage < totalPages}"
-                       th:href="@{/search-results(terms=${searchTerms}, url=${searchUrl}, page=${currentPage + 1})}"
-                       class="pagination-button">Next</a>
-                </div>
+                <a th:if="${currentPage > 1}" 
+                   th:href="@{/search-results(terms=${searchTerms != null && !searchTerms.isEmpty() ? searchTerms : ''}, url=${searchUrl != null && !searchUrl.isEmpty() ? searchUrl : ''}, page=${currentPage - 1})}">Previous</a>
+                <span th:each="i : ${#numbers.sequence(1, totalPages)}">
+                    <a th:if="${i != currentPage}" 
+                       th:href="@{/search-results(terms=${searchTerms != null && !searchTerms.isEmpty() ? searchTerms : ''}, url=${searchUrl != null && !searchUrl.isEmpty() ? searchUrl : ''}, page=${i})}" 
+                       th:text="${i}"></a>
+                    <span th:if="${i == currentPage}" 
+                          th:text="${i}" 
+                          class="current"></span>
+                </span>
+                <a th:if="${currentPage < totalPages}" 
+                   th:href="@{/search-results(terms=${searchTerms != null && !searchTerms.isEmpty() ? searchTerms : ''}, url=${searchUrl != null && !searchUrl.isEmpty() ? searchUrl : ''}, page=${currentPage + 1})}">Next</a>
             </div>
         </div>
 
-        <div class="navigation-links">
-            <a th:href="@{/search-page(type=${searchUrl != null ? 'url' : null})}" class="nav-link">New Search</a>
-            <a href="/" class="nav-link">Back to Home</a>
+        <!-- Link para voltar -->
+        <div class="back-link">
+            <a href="/">Back to Home</a>
         </div>
     </div>
 </body>
