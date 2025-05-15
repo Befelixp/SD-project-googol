@@ -220,7 +220,7 @@ public class Downloader {
                                     byte[] size = title.getBytes();
                                     int lim = Math.min(maxSizeTitle, size.length);
                                     title = new String(size, 0, lim);
-                                    siteData.title = title.toLowerCase().replace("\n", " ");
+                                    siteData.title = title.replace("\n", " ");
                                     System.out.println(downloader.getTimestamp() + " : Title: " + siteData.title);
                                 } catch (Exception e) {
                                     System.out.println(
@@ -235,7 +235,7 @@ public class Downloader {
                                     byte[] size = paragraphs.text().getBytes();
                                     int lim = Math.min(maxSizeText, size.length);
                                     String textCit = new String(size, 0, lim);
-                                    siteData.text = textCit.toLowerCase().replace("\n", " ");
+                                    siteData.text = textCit.replace("\n", " ");
                                     System.out.println(downloader.getTimestamp() + " : Text processado");
                                 } catch (Exception e) {
                                     System.out.println(

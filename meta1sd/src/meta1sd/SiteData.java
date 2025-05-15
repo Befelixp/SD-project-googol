@@ -73,4 +73,31 @@ public class SiteData implements Serializable {
     public void setPropagated(boolean propagated) {
         this.isPropagated = propagated;
     }
+
+    /**
+     * Retorna a URL do site.
+     * 
+     * @return A URL do site.
+     */
+    public String getUrl() {
+        return url;
+    }
+
+    /**
+     * Retorna o título do site.
+     * 
+     * @return O título do site.
+     */
+    public String getTitle() {
+        return title;
+    }
+
+    /**
+     * Retorna o texto do site.
+     * 
+     * @return O texto do site.
+     */
+    public String getText() {
+        return text;
+    }
 }

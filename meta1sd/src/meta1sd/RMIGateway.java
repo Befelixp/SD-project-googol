@@ -117,10 +117,10 @@ public class RMIGateway extends UnicastRemoteObject
      * Retorna páginas que correspondem às palavras fornecidas.
      * 
      * @param words As palavras a serem pesquisadas.
-     * @return Lista de URLs que correspondem às palavras.
+     * @return Lista de SiteData que correspondem às palavras.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
-    public List<String> returnPagesbyWords(String words) throws RemoteException {
+    public List<SiteData> returnPagesbyWords(String words) throws RemoteException {
         RMIIndexStorageBarrel barrel = getRandomBarrel();
         if (barrel == null) {
             System.out.println(getTimestamp() + " : ⚠️ Não há barrels disponíveis para pesquisa de palavras");

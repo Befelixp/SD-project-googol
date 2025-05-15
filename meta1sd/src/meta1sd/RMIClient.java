@@ -92,17 +92,7 @@ public class RMIClient {
 
                 try {
                     System.out.println(PURPLE + "\nSearching..." + RESET);
-
-                    // Usar diretamente a string de termos
-                    List<String> results = new ArrayList<>();
-
-                    try {
-                        results = gateway.returnPagesbyWords(terms); // Passar a string diretamente
-                    } catch (Exception e) {
-                        // Log do erro internamente (pode ser salvo em um arquivo de log)
-                        System.err.println("Search error: " + e.getMessage());
-                        results = new ArrayList<>(); // Garantir que results não seja null
-                    }
+                    List<SiteData> results = gateway.returnPagesbyWords(terms);
 
                     if (results == null || results.isEmpty()) {
                         System.out.println(YELLOW + "\nℹ️ No results found for your search." + RESET);
@@ -119,82 +109,84 @@ public class RMIClient {
                     int currentPage = 1;
 
                     while (true) {
-                        try {
-                            clearScreen();
-                            printSeparator();
-                            System.out.println(CYAN + "           SEARCH RESULTS" + RESET);
-                            printSeparator();
-                            System.out.println(YELLOW + "Search terms: " + RESET + terms);
-                            System.out.println(YELLOW + "Total results: " + RESET + totalResults);
-                            System.out.printf(YELLOW + "Page " + RESET + "%d of %d\n", currentPage, totalPages);
-                            printSeparator();
+                        clearScreen();
+                        printSeparator();
+                        System.out.println(CYAN + "           SEARCH RESULTS" + RESET);
+                        printSeparator();
+                        System.out.println(YELLOW + "Search terms: " + RESET + terms);
+                        System.out.println(YELLOW + "Total results: " + RESET + totalResults);
+                        System.out.printf(YELLOW + "Page " + RESET + "%d of %d\n", currentPage, totalPages);
+                        printSeparator();
 
-                            // Calcular índices para a página atual
-                            int startIndex = (currentPage - 1) * pageSize;
-                            int endIndex = Math.min(startIndex + pageSize, totalResults);
+                        int startIndex = (currentPage - 1) * pageSize;
+                        int endIndex = Math.min(startIndex + pageSize, totalResults);
 
-                            // Mostrar resultados da página atual
-                            for (int i = startIndex; i < endIndex; i++) {
-                                System.out.printf(GREEN + "[%2d]" + RESET + " %s\n", (i + 1), results.get(i));
+                        for (int i = startIndex; i < endIndex; i++) {
+                            SiteData result = results.get(i);
+                            System.out.println(GREEN + "\nResult " + (i + 1) + ":" + RESET);
+                            System.out.println(YELLOW + "URL: " + RESET + result.getUrl());
+                            if (result.getTitle() != null && !result.getTitle().isEmpty()) {
+                                System.out.println(YELLOW + "Title: " + RESET + result.getTitle());
                             }
-
-                            printSeparator();
-                            System.out.println(YELLOW + "Navigation:" + RESET);
-                            System.out.println(GREEN + "[N]" + RESET + "ext page    " +
-                                    GREEN + "[P]" + RESET + "revious page    " +
-                                    GREEN + "[G]" + RESET + "o to page    " +
-                                    RED + "[Q]" + RESET + "uit");
-                            System.out.print("\nEnter your choice: ");
-
-                            String choice = sc.nextLine().trim().toUpperCase();
-
-                            switch (choice) {
-                                case "N":
-                                    if (currentPage < totalPages) {
-                                        currentPage++;
-                                    } else {
-                                        System.out.println(YELLOW + "\nℹ️ Already on the last page!" + RESET);
-                                        Thread.sleep(1000);
-                                    }
-                                    break;
-
-                                case "P":
-                                    if (currentPage > 1) {
-                                        currentPage--;
-                                    } else {
-                                        System.out.println(YELLOW + "\nℹ️ Already on the first page!" + RESET);
-                                        Thread.sleep(1000);
-                                    }
-                                    break;
-
-                                case "G":
-                                    System.out.print("\nEnter page number (1-" + totalPages + "): ");
-                                    try {
-                                        int pageNum = Integer.parseInt(sc.nextLine());
-                                        if (pageNum >= 1 && pageNum <= totalPages) {
-                                            currentPage = pageNum;
-                                        } else {
-                                            System.out.println(YELLOW + "\nℹ️ Please enter a number between 1 and "
-                                                    + totalPages + RESET);
-                                            Thread.sleep(1000);
-                                        }
-                                    } catch (NumberFormatException e) {
-                                        System.out.println(YELLOW + "\nℹ️ Please enter a valid number!" + RESET);
-                                        Thread.sleep(1000);
-                                    }
-                                    break;
-
-                                case "Q":
-                                    return;
-
-                                default:
-                                    System.out.println(YELLOW + "\nℹ️ Invalid option!" + RESET);
+                            if (result.getText() != null && !result.getText().isEmpty()) {
+                                String preview = result.getText().length() > 200
+                                        ? result.getText().substring(0, 200) + "..."
+                                        : result.getText();
+                                System.out.println(YELLOW + "Preview: " + RESET + preview);
                             }
-                        } catch (Exception e) {
-                            System.out.println(
-                                    YELLOW + "\nℹ️ An error occurred while displaying results. Returning to main menu."
-                                            + RESET);
-                            break;
+                            printSeparator();
+                        }
+
+                        System.out.println("\n" + CYAN + "Navigation:" + RESET);
+                        System.out.println(GREEN + "[N]" + RESET + "ext page    " +
+                                GREEN + "[P]" + RESET + "revious page    " +
+                                GREEN + "[G]" + RESET + "o to page    " +
+                                RED + "[Q]" + RESET + "uit");
+                        System.out.print("\nEnter your choice: ");
+
+                        String choice = sc.nextLine().trim().toUpperCase();
+
+                        switch (choice) {
+                            case "N":
+                                if (currentPage < totalPages) {
+                                    currentPage++;
+                                } else {
+                                    System.out.println(RED + "\n⚠ Already on the last page!" + RESET);
+                                    Thread.sleep(1500);
+                                }
+                                break;
+
+                            case "P":
+                                if (currentPage > 1) {
+                                    currentPage--;
+                                } else {
+                                    System.out.println(RED + "\n⚠ Already on the first page!" + RESET);
+                                    Thread.sleep(1500);
+                                }
+                                break;
+
+                            case "G":
+                                System.out.print("\nEnter page number (1-" + totalPages + "): ");
+                                try {
+                                    int pageNum = Integer.parseInt(sc.nextLine());
+                                    if (pageNum >= 1 && pageNum <= totalPages) {
+                                        currentPage = pageNum;
+                                    } else {
+                                        System.out.println(RED + "\n❌ Invalid page number!" + RESET);
+                                        Thread.sleep(1500);
+                                    }
+                                } catch (NumberFormatException e) {
+                                    System.out.println(RED + "\n❌ Please enter a valid number!" + RESET);
+                                    Thread.sleep(1500);
+                                }
+                                break;
+
+                            case "Q":
+                                return;
+
+                            default:
+                                System.out.println(RED + "\n❌ Invalid option!" + RESET);
+                                Thread.sleep(1500);
                         }
                     }
                 } catch (Exception e) {

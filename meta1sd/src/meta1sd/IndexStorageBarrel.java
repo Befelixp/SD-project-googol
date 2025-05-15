@@ -699,10 +699,10 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
      * ordenadas pelo número de links que apontam para elas.
      *
      * @param words Conjunto de palavras a serem pesquisadas.
-     * @return Lista de URLs que contêm todas as palavras especificadas, ordenadas.
+     * @return Lista de SiteData que contêm todas as palavras especificadas,
+     *         ordenadas.
      */
-    public List<String> searchPagesByWords(Set<String> words) throws RemoteException { // Adicionado throws
-                                                                                       // RemoteException
+    public List<SiteData> searchPagesByWords(Set<String> words) throws RemoteException {
         if (words == null || words.isEmpty()) {
             return new ArrayList<>();
         }
@@ -733,12 +733,28 @@ public class IndexStorageBarrel extends UnicastRemoteObject implements RMIIndexS
         }
 
         // Ordena as páginas correspondentes pelo número de links de entrada
-        List<Map.Entry<String, Integer>> sortedAllPages = getPagesOrderedByIncomingLinks(); // Ordenação global
+        List<Map.Entry<String, Integer>> sortedAllPages = getPagesOrderedByIncomingLinks();
 
-        List<String> result = new ArrayList<>();
+        List<SiteData> result = new ArrayList<>();
         for (Map.Entry<String, Integer> sortedEntry : sortedAllPages) {
-            if (matchingPages.contains(sortedEntry.getKey())) {
-                result.add(sortedEntry.getKey());
+            String url = sortedEntry.getKey();
+            if (matchingPages.contains(url)) {
+                // Encontra o SiteData correspondente
+                synchronized (siteDataSet) {
+                    for (SiteData siteData : siteDataSet) {
+                        if (siteData.url.equals(url)) {
+                            // Cria uma cópia do SiteData para não modificar o original
+                            SiteData resultData = new SiteData();
+                            resultData.url = siteData.url;
+                            resultData.title = siteData.title;
+                            resultData.text = urlTexts.getOrDefault(url, "");
+                            resultData.tokens = siteData.tokens;
+                            resultData.links = siteData.links;
+                            result.add(resultData);
+                            break;
+                        }
+                    }
+                }
             }
         }
 
