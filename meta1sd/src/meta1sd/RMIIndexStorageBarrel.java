@@ -34,10 +34,10 @@ public interface RMIIndexStorageBarrel extends Remote {
      * Pesquisa páginas que contêm todas as palavras especificadas.
      * 
      * @param words Conjunto de palavras a serem pesquisadas.
-     * @return Lista de URLs que correspondem às palavras.
+     * @return Lista de SiteData que correspondem às palavras.
      * @throws RemoteException Se ocorrer um erro de comunicação remota.
      */
-    public List<String> searchPagesByWords(Set<String> words) throws RemoteException;
+    public List<SiteData> searchPagesByWords(Set<String> words) throws RemoteException;
 
     /**
      * Registra esta barrel em outras barrels e vice-versa.

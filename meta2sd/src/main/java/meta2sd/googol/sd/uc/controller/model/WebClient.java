@@ -11,22 +11,26 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
-import meta1sd.RMIClient;
 import meta1sd.RMIGatewayClientInterface;
+import meta1sd.SiteData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The WebClient class represents a client in the distributed system.
- * It extends UnicastRemoteObject to support RMI communication.
+ * Cliente web que se comunica com o gateway RMI para realizar operações de
+ * busca e indexação.
+ * Implementa a interface UnicastRemoteObject para suportar comunicação RMI.
+ * 
+ * @author Bernardo Pedro nº2021231014 e João Matos nº2021222748
+ * @version 1.0
  */
 @Component
 public class WebClient extends UnicastRemoteObject {
 
-    private int id = 1; // Default ID
+    private int id = 1; // ID padrão do cliente
     private RMIGatewayClientInterface gateway;
-    private static final int MAX_RETRIES = 5;
-    private static final int RETRY_DELAY_MS = 2000;
+    private static final int MAX_RETRIES = 5; // Número máximo de tentativas de conexão
+    private static final int RETRY_DELAY_MS = 2000; // Delay entre tentativas em milissegundos
 
     @Value("${characterLimit}")
     private int characterLimit;
@@ -37,52 +41,74 @@ public class WebClient extends UnicastRemoteObject {
     private static final Logger logger = LoggerFactory.getLogger(WebClient.class);
 
     /**
-     * Default constructor for Spring bean initialization.
+     * Construtor padrão para inicialização do bean Spring.
      * 
-     * @throws RemoteException if an RMI error occurs
+     * @throws RemoteException se ocorrer um erro RMI
      */
     public WebClient() throws RemoteException {
         super();
     }
 
     /**
-     * Initializes the WebClient after properties are injected.
-     * This method is called after all properties are set.
+     * Inicializa o WebClient após a injeção das propriedades.
+     * Este método é chamado após todas as propriedades serem definidas.
      */
     @PostConstruct
     public void init() {
         if (registryName == null || registryName.trim().isEmpty()) {
-            throw new IllegalStateException("registryName property is not set in application.properties");
+            logger.error("registryName property is not set in application.properties");
+            return;
         }
+        logger.info("Initializing WebClient with registry name: {}", registryName);
         try {
             connectToGateway();
         } catch (RemoteException e) {
-            throw new IllegalStateException("Failed to connect to gateway", e);
+            logger.error("Failed to connect to gateway: {}", e.getMessage());
         }
     }
 
     /**
-     * Attempts to connect to the gateway with retry logic.
+     * Tenta conectar ao gateway com lógica de retry.
      * 
-     * @throws RemoteException if an RMI error occurs
+     * @throws RemoteException se ocorrer um erro RMI
      */
     private void connectToGateway() throws RemoteException {
         int retries = 0;
         while (retries < MAX_RETRIES) {
             try {
-                System.out.println("Attempting to connect to gateway at: " + registryName);
+                logger.info("Attempting to connect to gateway at: {}", registryName);
                 gateway = (RMIGatewayClientInterface) Naming.lookup(registryName);
-                System.out.println("WebClient started: " + id);
+                logger.info("Successfully connected to gateway. WebClient started with ID: {}", id);
                 return;
-            } catch (MalformedURLException | NotBoundException e) {
+            } catch (MalformedURLException e) {
+                logger.error("Invalid RMI URL format: {}", registryName);
+                return;
+            } catch (NotBoundException e) {
                 retries++;
                 if (retries == MAX_RETRIES) {
-                    System.err.println("Failed to connect to gateway after " + MAX_RETRIES + " attempts");
-                    e.printStackTrace();
+                    logger.error(
+                            "Gateway not found in RMI registry after {} attempts. Make sure the gateway is running and registered with name 'Clients_Gateway'",
+                            MAX_RETRIES);
                     return;
                 }
-                System.out
-                        .println("Connection attempt " + retries + " failed. Retrying in " + RETRY_DELAY_MS + "ms...");
+                logger.info("Connection attempt {} failed. Gateway not found. Retrying in {}ms...", retries,
+                        RETRY_DELAY_MS);
+                try {
+                    TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            } catch (RemoteException e) {
+                retries++;
+                if (retries == MAX_RETRIES) {
+                    logger.error(
+                            "Failed to connect to RMI registry after {} attempts. Make sure the RMI registry is running on port 1092",
+                            MAX_RETRIES);
+                    return;
+                }
+                logger.info("Connection attempt {} failed. RMI registry not available. Retrying in {}ms...", retries,
+                        RETRY_DELAY_MS);
                 try {
                     TimeUnit.MILLISECONDS.sleep(RETRY_DELAY_MS);
                 } catch (InterruptedException ie) {
@@ -94,76 +120,98 @@ public class WebClient extends UnicastRemoteObject {
     }
 
     /**
-     * Returns the ID of the client.
+     * Retorna o ID do cliente.
      * 
-     * @return the ID of the client
+     * @return ID do cliente
      */
     public int getId() {
         return id;
     }
 
     /**
-     * Adds a URL to the Queue in the gateway.
+     * Adiciona uma URL à fila de indexação no gateway.
      * 
-     * @param url the URL to add
-     * @return true if the URL was added successfully, false otherwise
+     * @param url URL a ser indexada
+     * @return true se a URL foi adicionada com sucesso, false caso contrário
      */
     public boolean addURL(String url) {
         if (gateway == null) {
-            System.err.println("Gateway not connected");
+            logger.error("Cannot add URL: Gateway not connected");
             return false;
         }
         try {
+            logger.info("Adding URL to index queue: {}", url);
             gateway.clientIndexUrl(url);
+            logger.info("URL successfully added to index queue: {}", url);
             return true;
         } catch (Exception e) {
-            System.err.println("Error adding URL: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error adding URL to index queue: {}", e.getMessage());
             return false;
         }
     }
 
     /**
-     * Asks the gateway to search for the terms.
+     * Solicita ao gateway para buscar os termos.
      * 
-     * @param terms the terms to search for
-     * @return the search results
+     * @param terms termos a serem buscados
+     * @return lista de SiteData com os resultados da busca
      */
-    public List<String> getPagesbyTerms(String terms) {
+    public List<SiteData> getPagesbyTerms(String terms) {
+        if (gateway == null) {
+            logger.error("Cannot search terms: Gateway not connected");
+            return null;
+        }
         try {
-            return gateway.returnPagesbyWords(terms);
+            logger.info("Searching for terms: {}", terms);
+            List<SiteData> results = gateway.returnPagesbyWords(terms);
+            logger.info("Found {} results for terms: {}", results != null ? results.size() : 0, terms);
+            return results;
         } catch (RemoteException e) {
-            logger.error("Error getting pages by terms: {}", e.getMessage());
+            logger.error("Error searching for terms: {}", e.getMessage());
             return null;
         }
     }
 
     /**
-     * Asks the gateway to consult the URL.
+     * Solicita ao gateway para consultar uma URL.
      * 
-     * @param urlConsult the URL to consult
-     * @return the URL data
+     * @param urlConsult URL a ser consultada
+     * @return lista de URLs que linkam para a URL consultada
      */
     public List<String> returnLinkedUrls(String urlConsult) {
         if (gateway == null) {
-            System.err.println("Gateway not connected");
+            logger.error("Cannot search linked URLs: Gateway not connected");
             return null;
         }
         try {
-            List<String> result = gateway.returnLinkedUrls(urlConsult);
-            return result;
+            logger.info("Searching for URLs linking to: {}", urlConsult);
+            List<String> results = gateway.returnLinkedUrls(urlConsult);
+            logger.info("Found {} URLs linking to: {}", results != null ? results.size() : 0, urlConsult);
+            return results;
         } catch (Exception e) {
-            System.err.println("Error consulting URL: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error searching for linked URLs: {}", e.getMessage());
             return null;
         }
     }
 
+    /**
+     * Obtém páginas que linkam para uma URL específica.
+     * 
+     * @param url URL para buscar páginas que a referenciam
+     * @return lista de URLs que linkam para a URL especificada
+     */
     public List<String> getPagesbyUrl(String url) {
+        if (gateway == null) {
+            logger.error("Cannot search pages by URL: Gateway not connected");
+            return null;
+        }
         try {
-            return gateway.returnLinkedUrls(url);
+            logger.info("Searching for pages linking to: {}", url);
+            List<String> results = gateway.returnLinkedUrls(url);
+            logger.info("Found {} pages linking to: {}", results != null ? results.size() : 0, url);
+            return results;
         } catch (RemoteException e) {
-            logger.error("Error getting pages by URL: {}", e.getMessage());
+            logger.error("Error searching for pages by URL: {}", e.getMessage());
             return null;
         }
     }
