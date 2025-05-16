@@ -11,7 +11,6 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
-import meta1sd.RMIClient;
 import meta1sd.RMIGatewayClientInterface;
 import meta1sd.SiteData;
 import org.slf4j.Logger;
@@ -21,6 +20,9 @@ import org.slf4j.LoggerFactory;
  * Cliente web que se comunica com o gateway RMI para realizar operações de
  * busca e indexação.
  * Implementa a interface UnicastRemoteObject para suportar comunicação RMI.
+ * 
+ * @author Bernardo Pedro nº2021231014 e João Matos nº2021222748
+ * @version 1.0
  */
 @Component
 public class WebClient extends UnicastRemoteObject {

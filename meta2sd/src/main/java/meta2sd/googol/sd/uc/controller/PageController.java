@@ -19,9 +19,12 @@ import org.slf4j.LoggerFactory;
 import meta2sd.googol.sd.uc.service.GeminiService;
 
 /**
- * Controller responsável por gerenciar as páginas e requisições da aplicação
+ * Controlador responsável por gerenciar as páginas e requisições da aplicação
  * web.
  * Implementa as rotas para busca, indexação e visualização de resultados.
+ * 
+ * @author Bernardo Pedro nº2021231014 e João Matos nº2021222748
+ * @version 1.0
  */
 @Controller
 public class PageController {
@@ -38,24 +41,33 @@ public class PageController {
     private GeminiService geminiService;
 
     /**
-     * Rota principal da aplicação
+     * Exibe a página inicial da aplicação.
+     * 
+     * @return Nome da view da página inicial
      */
     @GetMapping("/")
     public String home() {
         return "index";
     }
 
+    /**
+     * Exibe a página inicial da aplicação (rota alternativa).
+     * 
+     * @return Nome da view da página inicial
+     */
     @GetMapping("/index")
     public String index() {
         return "index";
     }
 
     /**
-     * Processa a opção selecionada no menu principal
+     * Processa a opção selecionada no menu principal e redireciona para a página
+     * apropriada.
      * 
-     * @param option Opção selecionada pelo usuário
+     * @param option Opção selecionada pelo usuário (0: indexar URL, 1: buscar
+     *               termos, 2: buscar links, 3: buscar Hacker News)
      * @param model  Modelo para a view
-     * @return Redirecionamento para a página apropriada
+     * @return Redirecionamento para a página correspondente à opção selecionada
      */
     @PostMapping("/index")
     public String processIndex(@RequestParam("option") int option, Model model) {
@@ -74,7 +86,9 @@ public class PageController {
     }
 
     /**
-     * Exibe a página de adição de URL
+     * Exibe a página de adição de URL para indexação.
+     * 
+     * @return Nome da view da página de adição de URL
      */
     @GetMapping("/add-url")
     public String addUrl() {
@@ -82,11 +96,11 @@ public class PageController {
     }
 
     /**
-     * Processa a adição de uma nova URL para indexação
+     * Processa a adição de uma nova URL para indexação.
      * 
      * @param url   URL a ser indexada
      * @param model Modelo para a view
-     * @return Página de adição de URL com mensagem de sucesso/erro
+     * @return Nome da view da página de adição de URL com mensagem de sucesso/erro
      */
     @PostMapping("/add-url")
     public String processAddUrl(@RequestParam("url") String url, Model model) {
@@ -102,10 +116,11 @@ public class PageController {
     }
 
     /**
-     * Exibe a página de busca
+     * Exibe a página de busca com base no tipo de busca selecionado.
      * 
      * @param type  Tipo de busca (termos ou URL)
      * @param model Modelo para a view
+     * @return Nome da view da página de busca
      */
     @GetMapping("/search-page")
     public String searchPage(@RequestParam(value = "type", required = false) String type, Model model) {
@@ -114,11 +129,11 @@ public class PageController {
     }
 
     /**
-     * Processa a busca por termos
+     * Processa a busca por termos e exibe os resultados na primeira página.
      * 
      * @param terms Termos de busca
      * @param model Modelo para a view
-     * @return Página de resultados com os sites encontrados
+     * @return Nome da view da página de resultados
      */
     @PostMapping("/search")
     public String search(@RequestParam("terms") String terms, Model model) {
@@ -138,17 +153,28 @@ public class PageController {
                     result.url = "";
             });
 
-            model.addAttribute("results", results);
+            int pageSize = 10;
+            int totalPages = (int) Math.ceil((double) results.size() / pageSize);
+            int currentPage = 1;
+
+            // Calcular índices para a primeira página
+            int startIndex = 0;
+            int endIndex = Math.min(pageSize, results.size());
+
+            // Obter resultados da página
+            List<SiteData> pageResults = results.subList(startIndex, endIndex);
+
+            model.addAttribute("results", pageResults);
             model.addAttribute("totalResults", results.size());
-            model.addAttribute("pageSize", 10);
-            model.addAttribute("currentPage", 1);
-            model.addAttribute("totalPages", (int) Math.ceil((double) results.size() / 10));
+            model.addAttribute("pageSize", pageSize);
+            model.addAttribute("currentPage", currentPage);
+            model.addAttribute("totalPages", totalPages);
 
             if (results.isEmpty()) {
                 model.addAttribute("message", "No results found for your search terms.");
                 model.addAttribute("messageType", "info");
             } else {
-                // Gerar análise com Gemini
+                // Gerar análise com Gemini apenas na primeira página
                 StringBuilder searchResultsText = new StringBuilder();
                 for (SiteData result : results) {
                     searchResultsText.append("Título: ").append(result.title).append("\n");
@@ -167,11 +193,11 @@ public class PageController {
     }
 
     /**
-     * Processa a busca por páginas que linkam para uma URL específica
+     * Processa a busca por páginas que linkam para uma URL específica.
      * 
      * @param url   URL para buscar páginas que a referenciam
      * @param model Modelo para a view
-     * @return Página de resultados com as páginas encontradas
+     * @return Nome da view da página de resultados
      */
     @PostMapping("/search-links")
     public String searchLinks(@RequestParam("url") String url, Model model) {
@@ -203,7 +229,7 @@ public class PageController {
                 model.addAttribute("message", "No pages found linking to this URL.");
                 model.addAttribute("messageType", "info");
             } else {
-                // Gerar análise com Gemini
+                // Gerar análise com Gemini apenas na primeira página
                 StringBuilder searchResultsText = new StringBuilder();
                 for (String result : results) {
                     searchResultsText.append("URL: ").append(result).append("\n");
@@ -221,13 +247,14 @@ public class PageController {
     }
 
     /**
-     * Exibe os resultados da busca com paginação
+     * Exibe os resultados da busca com paginação.
+     * A análise do Gemini é gerada apenas na primeira página.
      * 
      * @param terms Termos de busca (opcional)
      * @param url   URL para buscar páginas que a referenciam (opcional)
      * @param page  Número da página atual
      * @param model Modelo para a view
-     * @return Página de resultados paginados
+     * @return Nome da view da página de resultados
      */
     @GetMapping("/search-results")
     public String searchResults(
@@ -256,7 +283,6 @@ public class PageController {
                 int pageSize = 10;
                 int totalPages = (int) Math.ceil((double) results.size() / pageSize);
 
-                // Ensure page is within valid range
                 page = Math.max(1, Math.min(page, totalPages));
 
                 int startIndex = (page - 1) * pageSize;
@@ -273,8 +299,8 @@ public class PageController {
                 if (results.isEmpty()) {
                     model.addAttribute("message", "No results found for your search terms.");
                     model.addAttribute("messageType", "info");
-                } else {
-                    // Gerar análise com Gemini
+                } else if (page == 1) {
+                    // Gerar análise com Gemini apenas na primeira página
                     StringBuilder searchResultsText = new StringBuilder();
                     for (SiteData result : results) {
                         searchResultsText.append("Título: ").append(result.title).append("\n");
@@ -300,7 +326,6 @@ public class PageController {
                 int pageSize = 10;
                 int totalPages = (int) Math.ceil((double) results.size() / pageSize);
 
-                // Ensure page is within valid range
                 page = Math.max(1, Math.min(page, totalPages));
 
                 int startIndex = (page - 1) * pageSize;
@@ -317,8 +342,8 @@ public class PageController {
                 if (results.isEmpty()) {
                     model.addAttribute("message", "No pages found linking to this URL.");
                     model.addAttribute("messageType", "info");
-                } else {
-                    // Gerar análise com Gemini
+                } else if (page == 1) {
+                    // Gerar análise com Gemini apenas na primeira página
                     StringBuilder searchResultsText = new StringBuilder();
                     for (String result : results) {
                         searchResultsText.append("URL: ").append(result).append("\n");
@@ -338,7 +363,12 @@ public class PageController {
     }
 
     /**
-     * Exibe a página de busca do Hacker News
+     * Exibe a página de busca do Hacker News e processa as buscas.
+     * 
+     * @param query Termos de busca (opcional)
+     * @param page  Número da página atual
+     * @param model Modelo para a view
+     * @return Nome da view da página de busca do Hacker News
      */
     @GetMapping("/hacker-news-search")
     public String hackerNewsSearch(
