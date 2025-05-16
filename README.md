@@ -9,43 +9,65 @@
 
 ```
 .
-└── src
-    ├── config/             # Arquivos de configuração
-    │   ├── client.properties
-    │   ├── downloaders.properties
-    │   ├── gateway.properties
-    │   └── indexstoragebarrels.properties
-    ├── data/               # Diretório de armazenamento de dados
-    ├── libs/               # Bibliotecas externas
-    │   └── jars/
-    │       ├── gson-2.10.1.jar
-    │       └── jsoup-1.17.2.jar
-    ├── meta1sd/            # Código-fonte
-    │   └── ...             # Arquivos fonte Java
-    ├── scripts/            # Scripts utilitários
-    │   └── ...             # Scripts de execução e gerenciamento
-    └── target/             # Classes compiladas
+├── meta1sd/                # Módulo de Backend
+│   └── src/
+│       ├── config/         # Arquivos de configuração
+│       │   ├── client.properties
+│       │   ├── downloaders.properties
+│       │   ├── gateway.properties
+│       │   └── indexstoragebarrels.properties
+│       ├── data/           # Diretório de armazenamento de dados
+│       ├── libs/           # Bibliotecas externas
+│       │   └── jars/
+│       │       ├── gson-2.10.1.jar
+│       │       └── jsoup-1.17.2.jar
+│       ├── meta1sd/        # Código-fonte
+│       │   └── ...         # Arquivos fonte Java
+│       ├── scripts/        # Scripts utilitários
+│       │   └── ...         # Scripts de execução e gerenciamento
+│       └── target/         # Classes compiladas
+│
+└── meta2sd/                # Módulo de Frontend (Web)
+    ├── src/
+    │   ├── main/
+    │   │   ├── java/      # Código-fonte Java
+    │   │   ├── resources/ # Recursos (templates, CSS, etc.)
+    │   │   └── webapp/    # Arquivos web
+    │   └── test/          # Testes
+    ├── target/            # Arquivos compilados e gerados
+    ├── pom.xml           # Configuração Maven
+    └── .env              # Configurações de ambiente
 ```
 
 ## Pré-requisitos
 
 - Java Development Kit (JDK)
+- Maven
 - Prompt de Comando ou PowerShell (Windows)
 - Bash shell (WSL/Linux) - Opcional
 
 ## Dependências
 
+### meta1sd
 - Gson 2.10.1
 - Jsoup 1.17.2
 
+### meta2sd
+- Spring Boot 3.2.3
+- Thymeleaf
+- Google Gemini API
+- Hacker News API
+
 ## Compilação e Execução
 
-### Compilação e Execução no Windows
+### meta1sd
+
+#### Compilação e Execução no Windows
 
 #### Compilar o Projeto
 
 ```cmd
-cd src
+cd meta1sd/src
 javac -d target/meta1sd -cp "libs/jars/*" meta1sd/*.java
 ```
 
@@ -79,62 +101,88 @@ java -cp "target/meta1sd;libs/jars/*" meta1sd.RMIClient <ID> config/client.prope
 
 Substitua `<ID>` por um identificador de cliente
 
-### Compilação e Execução no WSL/Linux
+### meta2sd
 
-#### Scripts Disponíveis no Diretório `scripts/`
+#### Configuração Inicial
 
-1. `compile.sh`
+1. Crie um arquivo `.env` na raiz do projeto meta2sd com as seguintes variáveis:
+```
+GEMINI_API_KEY=sua_chave_api_aqui
+```
 
-   - Compila todos os arquivos-fonte Java
-   - Gera classes compiladas no diretório `target/meta1sd`
+#### Compilação e Execução
 
-2. `runall.sh`
+1. Compilar o projeto:
+```cmd
+cd meta2sd
+# Se tiver o Maven instalado:
+mvn clean install
 
-   - Inicia todos os componentes do sistema:
-     - 1 Gateway
-     - 1 Downloader
-     - 2 Barrels de Armazenamento de Índice (IBS) com IDs 1 e 2
+# Se não tiver o Maven instalado, use o Maven Wrapper:
+# No Windows:
+./mvnw.cmd clean install
+# No Linux/Mac:
+./mvnw clean install
+```
 
-3. `runclient.sh`
+2. Executar a aplicação:
+```cmd
+# Se tiver o Maven instalado:
+mvn spring-boot:run
 
-   - Executa um novo cliente
-   - Usa as configurações do arquivo `config/client.properties`
+# Se não tiver o Maven instalado, use o Maven Wrapper:
+# No Windows:
+./mvnw.cmd spring-boot:run
+# No Linux/Mac:
+./mvnw spring-boot:run
+```
 
-4. `rundownloader.sh`
+A aplicação estará disponível em `http://localhost:8080`
 
-   - Inicia um novo processo de downloader
-   - Utiliza configurações do arquivo `config/downloaders.properties`
+#### Gerar Documentação JavaDoc
 
-5. `rungateway.sh`
+```cmd
+cd meta2sd
+# Se tiver o Maven instalado:
+mvn javadoc:javadoc
 
-   - Inicializa uma nova gateway
-   - Carrega configurações de `config/gateway.properties`
+# Se não tiver o Maven instalado, use o Maven Wrapper:
+# No Windows:
+./mvnw.cmd javadoc:javadoc
+# No Linux/Mac:
+./mvnw javadoc:javadoc
+```
 
-6. `runibs.sh <id>`
+A documentação será gerada em `target/reports/apidocs/`
 
-   - Cria um novo Barrel de Armazenamento de Índice (IBS)
-   - Requer um ID como argumento
-   - Usa configurações de `config/indexstoragebarrels.properties`
+## Funcionalidades
 
-7. Scripts de Parada:
-   - `stopall.sh`: Para todos os processos do sistema
-   - `stopdownloader.sh`: Encerra todos os processos de download
-   - `stopgateway.sh`: Desliga a gateway
-   - `stopibs.sh`: Interrompe todos os barrels de armazenamento de índice
+### meta1sd
+- Sistema de indexação distribuído
+- Download e processamento de páginas web
+- Busca por termos e URLs
+- Armazenamento distribuído de índices
 
-## Configuração
-
-Edite os arquivos no diretório `config/` para personalizar:
-
-- `client.properties`
-- `downloaders.properties`
-- `gateway.properties`
-- `indexstoragebarrels.properties`
+### meta2sd
+- Interface web moderna e responsiva
+- Busca por termos com análise de resultados via Gemini AI
+- Busca por URLs que linkam para uma página específica
+- Integração com Hacker News
+- Paginação de resultados
+- Cache de resultados para melhor performance
 
 ## Resolução de Problemas
 
+### meta1sd
 - Verifique se o Java está instalado e o JAVA_HOME está configurado
 - Verifique se o classpath inclui todos os arquivos JAR necessários
 - Verifique as configurações de rede e portas
 - Use caminhos completos se encontrar problemas com o classpath
 - Certifique-se de que todos os scripts têm permissão de execução: `chmod +x *.sh`
+
+### meta2sd
+- Verifique se o Maven está instalado corretamente
+- Certifique-se de que o arquivo `.env` está configurado corretamente
+- Verifique se a porta 8080 está disponível
+- Verifique os logs da aplicação em caso de erros
+- Certifique-se de que o meta1sd está rodando antes de iniciar o meta2sd

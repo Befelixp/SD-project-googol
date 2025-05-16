@@ -71,10 +71,3 @@ taskkill /F /IM java.exe
 ### Método 3: Manualmente
 1. Pressione `Ctrl+C` no terminal onde o componente está rodando
 2. Confirme a interrupção se solicitado
-
-## Observações Importantes
-
-1. Os caminhos nos comandos assumem que você está na raiz do projeto
-2. Use ponto-e-vírgula (;) como separador de classpath no Windows e dois pontos (:) no Linux/Mac
-3. Certifique-se de que as portas especificadas nos arquivos de configuração estão disponíveis
-4. Ao parar todos os processos Java, tenha certeza de que não há outros programas Java importantes rodando no sistema 
