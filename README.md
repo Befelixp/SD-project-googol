@@ -133,7 +133,7 @@ Edite os arquivos no diretório `config/` para personalizar:
 
 ## Resolução de Problemas
 
-- Verifique se o Java está instalado e o JAVA_HOME está bem configurado
+- Verifique se o Java está instalado e o JAVA_HOME está configurado
 - Verifique se o classpath inclui todos os arquivos JAR necessários
 - Verifique as configurações de rede e portas
 - Use caminhos completos se encontrar problemas com o classpath
